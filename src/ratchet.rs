@@ -134,14 +134,11 @@ impl Ratchet {
         for (i, byte) in self.large.iter().enumerate() {
             b[i + 66] = *byte;
         }
-        let s = RATCHET_SIGNIFIER.to_owned()
-            + &base64::encode_config(b, base64::URL_SAFE_NO_PAD).to_owned();
-
-        return s;
+        RATCHET_SIGNIFIER.to_owned() + &base64::encode_config(b, base64::URL_SAFE_NO_PAD)
     }
 
     pub fn inc(&mut self) {
-        if self.small_counter >= 255 {
+        if self.small_counter == 255 {
             let (r, _) = next_medium_epoch(*self);
             *self = r;
             return;
@@ -170,8 +167,8 @@ impl Ratchet {
         // We can find out which one is bigger by hashing both at the same time and looking at
         // when one created the same digit as the other, essentially racing the large digit's
         // recursive hashes.
-        let mut self_large = self.large.clone();
-        let mut other_large = other.large.clone();
+        let mut self_large = self.large;
+        let mut other_large = other.large;
         let mut steps = 0;
         let mut steps_left = max_steps;
 
@@ -198,7 +195,7 @@ impl Ratchet {
             }
             steps_left -= 1;
         }
-        return Err(RatchetErr::UnknownRelation);
+        Err(RatchetErr::UnknownRelation)
     }
 
     pub fn equal(&self, right: &Ratchet) -> bool {
@@ -223,7 +220,7 @@ impl Ratchet {
     // so calling "next" or "iter" will allow you to iterate over
     // the previous ratchets
     pub fn previous(self, old: &Ratchet, limit: usize) -> Result<Vec<Ratchet>, PreviousErr> {
-        return self.previous_budget(old, DEFAULT_PREV_BUDGET, limit);
+        self.previous_budget(old, DEFAULT_PREV_BUDGET, limit)
     }
 
     fn previous_budget(
@@ -237,11 +234,17 @@ impl Ratchet {
         } else if old.known_after(self) {
             return Err(PreviousErr::OlderRatchet);
         }
-        return previous_helper(&self.clone(), old, discrepency_budget, limit);
+        previous_helper(&self.clone(), old, discrepency_budget, limit)
     }
 
     fn combined_counter(self) -> usize {
         (256 * self.medium_counter as usize) + self.small_counter as usize
+    }
+}
+
+impl Default for Ratchet {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -264,8 +267,8 @@ pub fn previous_helper(
         if recent.medium == old.medium || recent.medium == old_next_medium.medium {
             // break out of the recursive pattern at this point because discrepency is
             // within the small ratchet. working sequentially if faster
-            let mut revision = old.clone();
-            let mut next = old.clone();
+            let mut revision = *old;
+            let mut next = *old;
             let mut revisions = vec![*old];
             next.inc();
             while !next.equal(recent) {
@@ -292,12 +295,12 @@ pub fn previous_helper(
         );
     }
 
-    return previous_helper(
+    previous_helper(
         recent,
         &old_next_large,
         discrepency_budget - old_next_large_steps_done as isize,
         limit,
-    );
+    )
 }
 
 fn inc_by(mut r: Ratchet, n: isize) -> (Ratchet, isize) {
@@ -325,7 +328,7 @@ fn next_large_epoch(r: Ratchet) -> (Ratchet, isize) {
 }
 
 fn next_medium_epoch(r: Ratchet) -> (Ratchet, isize) {
-    if r.medium_counter >= 255 {
+    if r.medium_counter == 255 {
         return next_large_epoch(r);
     }
 
@@ -551,9 +554,6 @@ mod tests {
                 max_steps: 10,
                 expect: 25000,
             },
-            // 65_533 works, 65_536 does not
-            // 256*256 = 65_536... there is something here
-            //
             Cases {
                 description: "ratchet a is 65_536 steps behind",
                 a: one,
@@ -641,7 +641,6 @@ mod tests {
     }
 
     #[test]
-    // TODO: fails in the same way as wnfs-go
     fn test_ratchet_previous() {
         let old = Ratchet::zero(
             shasum_from_hex("600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
