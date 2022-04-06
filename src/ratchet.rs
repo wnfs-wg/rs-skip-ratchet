@@ -68,7 +68,7 @@ impl fmt::Display for PreviousErr {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct Spiral {
+pub struct Ratchet {
     large: [u8; 32],
     medium: [u8; 32],
     medium_counter: u8,
@@ -76,7 +76,7 @@ pub struct Spiral {
     small_counter: u8,
 }
 
-impl Spiral {
+impl Ratchet {
     pub fn new() -> Self {
         // 32 bytes for the seed, plus two extra bytes to randomize small & medium starts
         let seed: [u8; 32] = rand::thread_rng().gen::<[u8; 32]>();
@@ -85,7 +85,7 @@ impl Spiral {
         let med_seed = hash_32(compliment(seed));
         let small_seed = hash_32(compliment(med_seed));
 
-        Spiral {
+        Ratchet {
             large: hash_32(seed),
             medium: hash_32_n(med_seed, inc_med),
             medium_counter: inc_med,
@@ -96,7 +96,7 @@ impl Spiral {
 
     fn zero(seed: [u8; 32]) -> Self {
         let med = hash_32(compliment(seed));
-        Spiral {
+        Ratchet {
             large: hash_32(seed),
             medium: med,
             medium_counter: 0,
@@ -155,7 +155,7 @@ impl Spiral {
         *self = jumped;
     }
 
-    pub fn compare(self, other: &Spiral, max_steps: usize) -> Result<isize, RatchetErr> {
+    pub fn compare(self, other: &Ratchet, max_steps: usize) -> Result<isize, RatchetErr> {
         let self_counter = self.combined_counter() as isize;
         let other_counter = other.combined_counter() as isize;
         if self.large == other.large {
@@ -201,7 +201,7 @@ impl Spiral {
         return Err(RatchetErr::UnknownRelation);
     }
 
-    pub fn equal(&self, right: &Spiral) -> bool {
+    pub fn equal(&self, right: &Ratchet) -> bool {
         self.small == right.small
             && self.small_counter == right.small_counter
             && self.medium == right.medium
@@ -211,27 +211,27 @@ impl Spiral {
 
     // known_after is probabilistic. Returns true if self is known to be after b, and false
     // if large counters are inequal (meaning r is before, equal, unrelated, or after)
-    pub fn known_after(self, other: Spiral) -> bool {
+    pub fn known_after(self, other: Ratchet) -> bool {
         self.large == other.large
             && self.medium_counter >= other.medium_counter
             && self.small_counter > other.small_counter
     }
 
     // webnative version is a generator
-    // go version returns slice of spirals
+    // go version returns slice of ratchets
     // create PreviousIterator, that satisfies the Iterator trait
     // so calling "next" or "iter" will allow you to iterate over
     // the previous ratchets
-    pub fn previous(self, old: &Spiral, limit: usize) -> Result<Vec<Spiral>, PreviousErr> {
+    pub fn previous(self, old: &Ratchet, limit: usize) -> Result<Vec<Ratchet>, PreviousErr> {
         return self.previous_budget(old, DEFAULT_PREV_BUDGET, limit);
     }
 
     fn previous_budget(
         self,
-        old: &Spiral,
+        old: &Ratchet,
         discrepency_budget: isize,
         limit: usize,
-    ) -> Result<Vec<Spiral>, PreviousErr> {
+    ) -> Result<Vec<Ratchet>, PreviousErr> {
         if self.equal(old) {
             return Err(PreviousErr::EqualRatchets);
         } else if old.known_after(self) {
@@ -247,11 +247,11 @@ impl Spiral {
 
 // TODO: this won't work for histories that span the small ratchet
 pub fn previous_helper(
-    recent: &Spiral,
-    old: &Spiral,
+    recent: &Ratchet,
+    old: &Ratchet,
     discrepency_budget: isize,
     limit: usize,
-) -> Result<Vec<Spiral>, PreviousErr> {
+) -> Result<Vec<Ratchet>, PreviousErr> {
     if discrepency_budget < 0 {
         return Err(PreviousErr::ExhaustedBudget);
     }
@@ -300,7 +300,7 @@ pub fn previous_helper(
     );
 }
 
-fn inc_by(mut r: Spiral, n: isize) -> (Spiral, isize) {
+fn inc_by(mut r: Ratchet, n: isize) -> (Ratchet, isize) {
     if n <= 0 {
         return (r, 0);
     } else if n >= 256 * 256 - r.combined_counter() as isize {
@@ -317,19 +317,19 @@ fn inc_by(mut r: Spiral, n: isize) -> (Spiral, isize) {
     (r, n)
 }
 
-fn next_large_epoch(r: Spiral) -> (Spiral, isize) {
+fn next_large_epoch(r: Ratchet) -> (Ratchet, isize) {
     (
-        Spiral::zero(r.large),
+        Ratchet::zero(r.large),
         256 * 256 - r.combined_counter() as isize,
     )
 }
 
-fn next_medium_epoch(r: Spiral) -> (Spiral, isize) {
+fn next_medium_epoch(r: Ratchet) -> (Ratchet, isize) {
     if r.medium_counter >= 255 {
         return next_large_epoch(r);
     }
 
-    let jumped = Spiral {
+    let jumped = Ratchet {
         large: r.large,
         medium: hash_32(r.medium),
         medium_counter: r.medium_counter + 1,
@@ -340,7 +340,7 @@ fn next_medium_epoch(r: Spiral) -> (Spiral, isize) {
     (jumped, jump_count as isize)
 }
 
-pub fn decode_spiral(s: String) -> Result<Spiral, RatchetErr> {
+pub fn decode_ratchet(s: String) -> Result<Ratchet, RatchetErr> {
     if s.len() != 133 {
         return Err(RatchetErr::BadLen(s.len()));
     }
@@ -349,7 +349,7 @@ pub fn decode_spiral(s: String) -> Result<Spiral, RatchetErr> {
     }
     let d = base64::decode_config(&s[2..], base64::URL_SAFE_NO_PAD)?;
 
-    let mut s = Spiral {
+    let mut s = Ratchet {
         small: [0; 32],
         small_counter: 0,
         medium: [0; 32],
@@ -415,13 +415,13 @@ mod tests {
 
     #[test]
     fn test_ratchet() {
-        // seed pulled from https://whitepaper.fission.codes/file-system/partitions/private-directories/concepts/spiral-ratchet
+        // seed pulled from https://whitepaper.fission.codes/file-system/partitions/private-directories/concepts/ratchet-ratchet
         let seed =
             shasum_from_hex("600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
                 .unwrap();
 
-        let mut a = Spiral::zero(seed);
-        let expect = Spiral {
+        let mut a = Ratchet::zero(seed);
+        let expect = Ratchet {
             large: shasum_from_hex(
                 "5aa00b14dd50887cdc0b0b55aa2da1eb5cc3a79cdbe893b2319da378a83ad0c5",
             )
@@ -440,7 +440,7 @@ mod tests {
         assert_ratchet_equal(expect, a);
 
         a.inc();
-        let mut b = Spiral::zero(seed);
+        let mut b = Ratchet::zero(seed);
         b.inc();
         assert_ratchet_equal(a, b);
 
@@ -455,13 +455,13 @@ mod tests {
             shasum_from_hex("600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
                 .unwrap();
         // manually advance ratchet 256 (2 ^ 8) times
-        let mut slow = Spiral::zero(seed);
+        let mut slow = Ratchet::zero(seed);
         for _ in 0..256 {
             slow.inc();
         }
 
         // fast jump 256 values in one shot
-        let (fast, _) = next_medium_epoch(Spiral::zero(seed));
+        let (fast, _) = next_medium_epoch(Ratchet::zero(seed));
         assert_ratchet_equal(slow, fast);
     }
 
@@ -476,13 +476,13 @@ mod tests {
             shasum_from_hex("600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
                 .unwrap();
         // manually advance ratchet (2 ^ 16) times
-        let mut slow = Spiral::zero(seed);
+        let mut slow = Ratchet::zero(seed);
         for _ in 0..65536 {
             slow.inc();
         }
 
         // fast jump (2 ^ 16) values in one shot
-        let (fast, _) = next_large_epoch(Spiral::zero(seed));
+        let (fast, _) = next_large_epoch(Ratchet::zero(seed));
         assert_ratchet_equal(slow, fast);
     }
 
@@ -491,16 +491,16 @@ mod tests {
         let seed =
             shasum_from_hex("600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
                 .unwrap();
-        let a = Spiral::zero(seed);
+        let a = Ratchet::zero(seed);
         let encoded = a.encode();
 
-        let b = decode_spiral(encoded).unwrap();
+        let b = decode_ratchet(encoded).unwrap();
         assert_ratchet_equal(a, b);
     }
 
     #[test]
     fn test_ratchet_compare() {
-        let one = Spiral::zero(
+        let one = Ratchet::zero(
             shasum_from_hex("600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
                 .unwrap(),
         );
@@ -517,8 +517,8 @@ mod tests {
 
         struct Cases<'a> {
             description: &'a str,
-            a: Spiral,
-            b: Spiral,
+            a: Ratchet,
+            b: Ratchet,
             max_steps: usize,
             expect: isize,
         }
@@ -576,7 +576,7 @@ mod tests {
             assert_eq!(c.expect, got);
         }
 
-        let unrelated = Spiral::zero(
+        let unrelated = Ratchet::zero(
             shasum_from_hex("500b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
                 .unwrap(),
         );
@@ -586,31 +586,31 @@ mod tests {
 
     #[test]
     fn test_ratchet_equal() {
-        let a = Spiral::zero(
+        let a = Ratchet::zero(
             shasum_from_hex("600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
                 .unwrap(),
         );
-        let b = Spiral::zero(
+        let b = Ratchet::zero(
             shasum_from_hex("600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
                 .unwrap(),
         );
-        let c = Spiral::zero(
+        let c = Ratchet::zero(
             shasum_from_hex("0000000000000000000000000000000000000000000000000000000000000000")
                 .unwrap(),
         );
 
         if !a.equal(&b) {
-            panic!("Spiral::equal method incorrectly asserts two equal ratchets are unequal");
+            panic!("Ratchet::equal method incorrectly asserts two equal ratchets are unequal");
         }
 
         if b.equal(&c) {
-            panic!("Spiral::equal method incorrectly asserts two unequal ratchets are equal")
+            panic!("Ratchet::equal method incorrectly asserts two unequal ratchets are equal")
         }
     }
 
     #[test]
     fn test_ratchet_previous_equal_error() {
-        let old = Spiral::zero(
+        let old = Ratchet::zero(
             shasum_from_hex("600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
                 .unwrap(),
         );
@@ -625,7 +625,7 @@ mod tests {
 
     #[test]
     fn test_ratchet_previous_older_error() {
-        let old = Spiral::zero(
+        let old = Ratchet::zero(
             shasum_from_hex("600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
                 .unwrap(),
         );
@@ -643,7 +643,7 @@ mod tests {
     #[test]
     // TODO: fails in the same way as wnfs-go
     fn test_ratchet_previous() {
-        let old = Spiral::zero(
+        let old = Ratchet::zero(
             shasum_from_hex("600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
                 .unwrap(),
         );
@@ -659,7 +659,7 @@ mod tests {
                 limit = inc;
             }
 
-            let mut expect: Vec<Spiral> = vec![];
+            let mut expect: Vec<Ratchet> = vec![];
 
             let mut r = old.clone();
             for i in 0..limit {
@@ -715,7 +715,7 @@ mod tests {
         assert_eq!(e, compliment(d));
     }
 
-    fn assert_ratchet_equal(expect: Spiral, got: Spiral) {
+    fn assert_ratchet_equal(expect: Ratchet, got: Ratchet) {
         assert_eq!(hex::encode(expect.large), hex::encode(got.large));
         assert_eq!(hex::encode(expect.medium), hex::encode(got.medium));
         assert_eq!(expect.medium_counter, got.medium_counter);

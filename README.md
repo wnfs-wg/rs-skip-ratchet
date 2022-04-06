@@ -1,4 +1,4 @@
-rust implementation of spiral ratchet
+rust implementation of skip ratchet
 
 typescript implementation here: 
 https://github.com/fission-suite/webnative/blob/matheus23/wnfs2/src/fs/data/private/spiralratchet.ts

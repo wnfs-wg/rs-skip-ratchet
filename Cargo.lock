@@ -206,7 +206,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "spiral_ratchet"
+name = "skip_ratchet"
 version = "0.1.0"
 dependencies = [
  "base64",
