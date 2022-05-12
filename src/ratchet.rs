@@ -1,79 +1,16 @@
-use base64::{self, DecodeError};
+use crate::{
+    constants::{DEFAULT_PREV_BUDGET, RATCHET_SIGNIFIER},
+    utils, PreviousErr, RatchetErr,
+};
 use rand::Rng;
-use sha3::{Digest, Sha3_256};
-use std::error;
-use std::fmt;
 
-// Flag the encoding. The default encoding is:
-// * base64URL-unpadded (signified with u)
-// * SHA-256 (0x16: "F" in base64URL)
-const RATCHET_SIGNIFIER: &str = "uF";
-// number of iterations a previous search can use before
-// ratchets are considered unrelated
-const DEFAULT_PREV_BUDGET: isize = 1_000_000;
-
-#[derive(Debug)]
-pub enum RatchetErr {
-    BadLen(usize),
-    BadEncoding(String),
-    UnknownRelation,
-    Decode(DecodeError),
-}
-
-impl fmt::Display for RatchetErr {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match &*self {
-            RatchetErr::BadLen(i) => write!(f, "invalid ratchet length {}", i),
-            RatchetErr::BadEncoding(s) => write!(
-                f,
-                "unsupported ratched encoding: '{}'. only '{}' is supported",
-                s, RATCHET_SIGNIFIER
-            ),
-            RatchetErr::UnknownRelation => write!(f, "cannot relate ratchets"),
-            RatchetErr::Decode(e) => write!(f, "{:?}", e),
-        }
-    }
-}
-
-impl error::Error for RatchetErr {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        match *self {
-            RatchetErr::Decode(ref e) => Some(e),
-            _ => None,
-        }
-    }
-}
-
-impl From<DecodeError> for RatchetErr {
-    fn from(err: DecodeError) -> RatchetErr {
-        RatchetErr::Decode(err)
-    }
-}
-
-#[derive(Debug)]
-pub enum PreviousErr {
-    ExhaustedBudget,
-    EqualRatchets,
-    OlderRatchet,
-}
-
-impl fmt::Display for PreviousErr {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            PreviousErr::ExhaustedBudget => write!(f, "exhausted ratchet discrepency budget"),
-            PreviousErr::EqualRatchets => write!(f, "ratchets are equal"),
-            PreviousErr::OlderRatchet => write!(f, "self ratchet is older than given ratchet"),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Ratchet {
-    large: [u8; 32],
-    medium: [u8; 32],
-    medium_counter: u8,
-    small: [u8; 32],
-    small_counter: u8,
+    pub(crate) large: [u8; 32],
+    pub(crate) medium: [u8; 32],
+    pub(crate) medium_counter: u8,
+    pub(crate) small: [u8; 32],
+    pub(crate) small_counter: u8,
 }
 
 impl Ratchet {
@@ -82,35 +19,35 @@ impl Ratchet {
         let seed: [u8; 32] = rand::thread_rng().gen::<[u8; 32]>();
         let inc_med = rand::thread_rng().gen::<u8>();
         let inc_small = rand::thread_rng().gen::<u8>();
-        let med_seed = hash_32(compliment(seed));
-        let small_seed = hash_32(compliment(med_seed));
+        let med_seed = utils::hash_32(utils::compliment(seed));
+        let small_seed = utils::hash_32(utils::compliment(med_seed));
 
         Ratchet {
-            large: hash_32(seed),
-            medium: hash_32_n(med_seed, inc_med),
+            large: utils::hash_32(seed),
+            medium: utils::hash_32_n(med_seed, inc_med),
             medium_counter: inc_med,
-            small: hash_32_n(small_seed, inc_small),
+            small: utils::hash_32_n(small_seed, inc_small),
             small_counter: inc_small,
         }
     }
 
-    fn zero(seed: [u8; 32]) -> Self {
-        let med = hash_32(compliment(seed));
+    pub(crate) fn zero(seed: [u8; 32]) -> Self {
+        let med = utils::hash_32(utils::compliment(seed));
         Ratchet {
-            large: hash_32(seed),
+            large: utils::hash_32(seed),
             medium: med,
             medium_counter: 0,
-            small: hash_32(compliment(med)),
+            small: utils::hash_32(utils::compliment(med)),
             small_counter: 0,
         }
     }
 
-    pub fn key(self) -> [u8; 32] {
-        let v = xor(self.large, xor(self.medium, self.small));
-        hash_32(v)
+    pub fn key(&self) -> [u8; 32] {
+        let v = utils::xor(self.large, utils::xor(self.medium, self.small));
+        utils::hash_32(v)
     }
 
-    pub fn summary(self) -> String {
+    pub fn summary(&self) -> String {
         format!(
             "{:?}-{:?}:{:?}-{:?}:{:?}",
             &self.large[0..3],
@@ -121,38 +58,22 @@ impl Ratchet {
         )
     }
 
-    pub fn encode(self) -> String {
-        let mut b: [u8; 98] = [0; 98];
-        for (i, byte) in self.small.iter().enumerate() {
-            b[i] = *byte;
-        }
-        b[32] = self.small_counter;
-        for (i, byte) in self.medium.iter().enumerate() {
-            b[i + 33] = *byte;
-        }
-        b[65] = self.medium_counter;
-        for (i, byte) in self.large.iter().enumerate() {
-            b[i + 66] = *byte;
-        }
-        RATCHET_SIGNIFIER.to_owned() + &base64::encode_config(b, base64::URL_SAFE_NO_PAD)
-    }
-
     pub fn inc(&mut self) {
         if self.small_counter == 255 {
-            let (r, _) = next_medium_epoch(*self);
+            let (r, _) = self.next_medium_epoch();
             *self = r;
             return;
         }
-        self.small = hash_32(self.small);
+        self.small = utils::hash_32(self.small);
         self.small_counter += 1;
     }
 
     pub fn inc_by(&mut self, n: usize) {
-        let (jumped, _) = inc_by(*self, n as isize);
+        let (jumped, _) = inc_by(self, n as isize);
         *self = jumped;
     }
 
-    pub fn compare(self, other: &Ratchet, max_steps: usize) -> Result<isize, RatchetErr> {
+    pub fn compare(&self, other: &Ratchet, max_steps: usize) -> Result<isize, RatchetErr> {
         let self_counter = self.combined_counter() as isize;
         let other_counter = other.combined_counter() as isize;
         if self.large == other.large {
@@ -175,8 +96,8 @@ impl Ratchet {
         // Since the two ratches might just be generated from a totally different setup, we
         // can never _really_ know which one is the bigger one. They might be unrelated.
         while steps_left > 0 {
-            self_large = hash_32(self_large);
-            other_large = hash_32(other_large);
+            self_large = utils::hash_32(self_large);
+            other_large = utils::hash_32(other_large);
             steps += 1;
 
             if other_large == self.large {
@@ -198,17 +119,9 @@ impl Ratchet {
         Err(RatchetErr::UnknownRelation)
     }
 
-    pub fn equal(&self, right: &Ratchet) -> bool {
-        self.small == right.small
-            && self.small_counter == right.small_counter
-            && self.medium == right.medium
-            && self.medium_counter == right.medium_counter
-            && self.large == right.large
-    }
-
     // known_after is probabilistic. Returns true if self is known to be after b, and false
     // if large counters are inequal (meaning r is before, equal, unrelated, or after)
-    pub fn known_after(self, other: Ratchet) -> bool {
+    pub fn known_after(&self, other: &Ratchet) -> bool {
         self.large == other.large
             && self.medium_counter >= other.medium_counter
             && self.small_counter > other.small_counter
@@ -219,32 +132,118 @@ impl Ratchet {
     // create PreviousIterator, that satisfies the Iterator trait
     // so calling "next" or "iter" will allow you to iterate over
     // the previous ratchets
-    pub fn previous(self, old: &Ratchet, limit: usize) -> Result<Vec<Ratchet>, PreviousErr> {
+    pub fn previous(&self, old: &Ratchet, limit: usize) -> Result<Vec<Ratchet>, PreviousErr> {
         self.previous_budget(old, DEFAULT_PREV_BUDGET, limit)
     }
 
     fn previous_budget(
-        self,
+        &self,
         old: &Ratchet,
         discrepency_budget: isize,
         limit: usize,
     ) -> Result<Vec<Ratchet>, PreviousErr> {
-        if self.equal(old) {
+        if self == old {
             return Err(PreviousErr::EqualRatchets);
         } else if old.known_after(self) {
             return Err(PreviousErr::OlderRatchet);
         }
+
         previous_helper(&self.clone(), old, discrepency_budget, limit)
     }
 
-    fn combined_counter(self) -> usize {
+    fn combined_counter(&self) -> usize {
         (256 * self.medium_counter as usize) + self.small_counter as usize
+    }
+
+    pub(crate) fn next_large_epoch(&self) -> (Ratchet, isize) {
+        (
+            Ratchet::zero(self.large),
+            256 * 256 - self.combined_counter() as isize,
+        )
+    }
+
+    pub(crate) fn next_medium_epoch(&self) -> (Ratchet, isize) {
+        if self.medium_counter == 255 {
+            return self.next_large_epoch();
+        }
+
+        let jumped = Ratchet {
+            large: self.large,
+            medium: utils::hash_32(self.medium),
+            medium_counter: self.medium_counter + 1,
+            small: utils::hash_32(utils::compliment(self.medium)),
+            small_counter: 0,
+        };
+
+        let jump_count = jumped.combined_counter() - self.combined_counter();
+        (jumped, jump_count as isize)
     }
 }
 
 impl Default for Ratchet {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl TryFrom<String> for Ratchet {
+    type Error = RatchetErr;
+
+    fn try_from(string: String) -> Result<Self, Self::Error> {
+        if string.len() != 133 {
+            return Err(RatchetErr::BadLen(string.len()));
+        }
+
+        if &string[0..2] != RATCHET_SIGNIFIER {
+            return Err(RatchetErr::BadEncoding(string[0..2].to_string()));
+        }
+
+        let d = base64::decode_config(&string[2..], base64::URL_SAFE_NO_PAD)?;
+
+        let mut ratchet = Ratchet {
+            small: [0; 32],
+            small_counter: 0,
+            medium: [0; 32],
+            medium_counter: 0,
+            large: [0; 32],
+        };
+
+        for (i, byte) in d.iter().enumerate() {
+            match i {
+                0..=31 => ratchet.small[i] = *byte,
+                32 => ratchet.small_counter = *byte,
+                33..=64 => ratchet.medium[i - 33] = *byte,
+                65 => ratchet.medium_counter = *byte,
+                66..=97 => ratchet.large[i - 66] = *byte,
+                _ => (),
+            }
+        }
+
+        Ok(ratchet)
+    }
+}
+
+impl From<&Ratchet> for String {
+    fn from(ratchet: &Ratchet) -> Self {
+        let mut b: [u8; 98] = [0; 98];
+
+        for (i, byte) in ratchet.small.iter().enumerate() {
+            b[i] = *byte;
+        }
+
+        b[32] = ratchet.small_counter;
+
+        for (i, byte) in ratchet.medium.iter().enumerate() {
+            b[i + 33] = *byte;
+        }
+
+        b[65] = ratchet.medium_counter;
+
+        for (i, byte) in ratchet.large.iter().enumerate() {
+            b[i + 66] = *byte;
+        }
+
+        RATCHET_SIGNIFIER.to_owned() + &base64::encode_config(b, base64::URL_SAFE_NO_PAD)
     }
 }
 
@@ -259,22 +258,24 @@ pub fn previous_helper(
         return Err(PreviousErr::ExhaustedBudget);
     }
 
-    let (old_next_large, old_next_large_steps_done) = next_large_epoch(*old);
+    let (old_next_large, old_next_large_steps_done) = old.next_large_epoch();
 
     if recent.large == old.large || recent.large == old_next_large.large {
-        let (old_next_medium, old_next_medium_steps_done) = next_medium_epoch(*old);
+        let (old_next_medium, old_next_medium_steps_done) = old.next_medium_epoch();
 
         if recent.medium == old.medium || recent.medium == old_next_medium.medium {
             // break out of the recursive pattern at this point because discrepency is
             // within the small ratchet. working sequentially if faster
-            let mut revision = *old;
-            let mut next = *old;
-            let mut revisions = vec![*old];
+            let mut revision = old.clone();
+            let mut next = old.clone();
+            let mut revisions = vec![old.clone()];
+
             next.inc();
-            while !next.equal(recent) {
+
+            while next != *recent {
                 revision.inc();
                 next.inc();
-                revisions.push(revision);
+                revisions.push(revision.clone());
             }
             let mut lim = limit;
             if revisions.len() < limit {
@@ -303,422 +304,21 @@ pub fn previous_helper(
     )
 }
 
-fn inc_by(mut r: Ratchet, n: isize) -> (Ratchet, isize) {
+pub(crate) fn inc_by(ratchet: &mut Ratchet, n: isize) -> (Ratchet, isize) {
     if n <= 0 {
-        return (r, 0);
-    } else if n >= 256 * 256 - r.combined_counter() as isize {
+        return (ratchet.clone(), 0);
+    } else if n >= 256 * 256 - ratchet.combined_counter() as isize {
         // n is larger than at least one large epoch jump
-        let (jumped, jump_count) = next_large_epoch(r);
-        return inc_by(jumped, n - jump_count);
-    } else if n >= 256 - r.small_counter as isize {
+        let (mut jumped, jump_count) = ratchet.next_large_epoch();
+        return inc_by(&mut jumped, n - jump_count);
+    } else if n >= 256 - ratchet.small_counter as isize {
         // n is larger than at lest one medium epoch jump
-        let (jumped, jump_count) = next_medium_epoch(r);
-        return inc_by(jumped, n - jump_count);
-    }
-    r.small = hash_32_n(r.small, n as u8);
-    r.small_counter += n as u8;
-    (r, n)
-}
-
-fn next_large_epoch(r: Ratchet) -> (Ratchet, isize) {
-    (
-        Ratchet::zero(r.large),
-        256 * 256 - r.combined_counter() as isize,
-    )
-}
-
-fn next_medium_epoch(r: Ratchet) -> (Ratchet, isize) {
-    if r.medium_counter == 255 {
-        return next_large_epoch(r);
+        let (mut jumped, jump_count) = ratchet.next_medium_epoch();
+        return inc_by(&mut jumped, n - jump_count);
     }
 
-    let jumped = Ratchet {
-        large: r.large,
-        medium: hash_32(r.medium),
-        medium_counter: r.medium_counter + 1,
-        small: hash_32(compliment(r.medium)),
-        small_counter: 0,
-    };
-    let jump_count = jumped.combined_counter() - r.combined_counter();
-    (jumped, jump_count as isize)
-}
+    ratchet.small = utils::hash_32_n(ratchet.small, n as u8);
+    ratchet.small_counter += n as u8;
 
-pub fn decode_ratchet(s: String) -> Result<Ratchet, RatchetErr> {
-    if s.len() != 133 {
-        return Err(RatchetErr::BadLen(s.len()));
-    }
-    if &s[0..2] != RATCHET_SIGNIFIER {
-        return Err(RatchetErr::BadEncoding(s[0..2].to_string()));
-    }
-    let d = base64::decode_config(&s[2..], base64::URL_SAFE_NO_PAD)?;
-
-    let mut s = Ratchet {
-        small: [0; 32],
-        small_counter: 0,
-        medium: [0; 32],
-        medium_counter: 0,
-        large: [0; 32],
-    };
-
-    for (i, byte) in d.iter().enumerate() {
-        match i {
-            0..=31 => s.small[i] = *byte,
-            32 => s.small_counter = *byte,
-            33..=64 => s.medium[i - 33] = *byte,
-            65 => s.medium_counter = *byte,
-            66..=97 => s.large[i - 66] = *byte,
-            _ => (),
-        }
-    }
-    Ok(s)
-}
-
-fn hash_32(d: [u8; 32]) -> [u8; 32] {
-    let mut hasher = Sha3_256::new();
-    hasher.update(d);
-    let result_vec = hasher.finalize().to_vec();
-    let mut arr = [0; 32];
-    for (i, byte) in result_vec.iter().enumerate() {
-        arr[i] = *byte;
-    }
-    arr
-}
-
-fn hash_32_n(mut d: [u8; 32], n: u8) -> [u8; 32] {
-    for _ in 0..n {
-        d = hash_32(d);
-    }
-    d
-}
-
-fn xor(a: [u8; 32], b: [u8; 32]) -> [u8; 32] {
-    let mut c: [u8; 32] = [0; 32];
-    for (i, (a_byte, b_byte)) in a.iter().zip(b.iter()).enumerate() {
-        c[i] = a_byte ^ b_byte;
-    }
-    c
-}
-
-fn compliment(d: [u8; 32]) -> [u8; 32] {
-    let mut e: [u8; 32] = [0; 32];
-    for (i, d_byte) in d.iter().enumerate() {
-        e[i] = !d_byte;
-    }
-    e
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use hex::FromHex;
-
-    fn shasum_from_hex(s: &str) -> Result<[u8; 32], hex::FromHexError> {
-        <[u8; 32]>::from_hex(s)
-    }
-
-    #[test]
-    fn test_ratchet() {
-        // seed pulled from https://whitepaper.fission.codes/file-system/partitions/private-directories/concepts/ratchet-ratchet
-        let seed =
-            shasum_from_hex("600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
-                .unwrap();
-
-        let mut a = Ratchet::zero(seed);
-        let expect = Ratchet {
-            large: shasum_from_hex(
-                "5aa00b14dd50887cdc0b0b55aa2da1eb5cc3a79cdbe893b2319da378a83ad0c5",
-            )
-            .unwrap(),
-            medium: shasum_from_hex(
-                "5a86c2477e2ae4ffcf6373cce82259eb542b72a72db9cf9cddfe06bcc20623b6",
-            )
-            .unwrap(),
-            medium_counter: 0,
-            small: shasum_from_hex(
-                "962b7f9ac204ffd0fa398e9c875c90806c0cd6646655f7a5994b7a828b70c0da",
-            )
-            .unwrap(),
-            small_counter: 0,
-        };
-        assert_ratchet_equal(expect, a);
-
-        a.inc();
-        let mut b = Ratchet::zero(seed);
-        b.inc();
-        assert_ratchet_equal(a, b);
-
-        let a_key = a.key();
-        let b_key = b.key();
-        assert_eq!(a_key, b_key);
-    }
-
-    #[test]
-    fn test_ratchet_add_256() {
-        let seed =
-            shasum_from_hex("600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
-                .unwrap();
-        // manually advance ratchet 256 (2 ^ 8) times
-        let mut slow = Ratchet::zero(seed);
-        for _ in 0..256 {
-            slow.inc();
-        }
-
-        // fast jump 256 values in one shot
-        let (fast, _) = next_medium_epoch(Ratchet::zero(seed));
-        assert_ratchet_equal(slow, fast);
-    }
-
-    // #[test]
-    // fn test_fuzz_ratchet {
-    //     // TODO: research rust fuzz impl
-    // }
-
-    #[test]
-    fn test_ratchet_add_65536() {
-        let seed =
-            shasum_from_hex("600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
-                .unwrap();
-        // manually advance ratchet (2 ^ 16) times
-        let mut slow = Ratchet::zero(seed);
-        for _ in 0..65536 {
-            slow.inc();
-        }
-
-        // fast jump (2 ^ 16) values in one shot
-        let (fast, _) = next_large_epoch(Ratchet::zero(seed));
-        assert_ratchet_equal(slow, fast);
-    }
-
-    #[test]
-    fn test_ratchet_coding() {
-        let seed =
-            shasum_from_hex("600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
-                .unwrap();
-        let a = Ratchet::zero(seed);
-        let encoded = a.encode();
-
-        let b = decode_ratchet(encoded).unwrap();
-        assert_ratchet_equal(a, b);
-    }
-
-    #[test]
-    fn test_ratchet_compare() {
-        let one = Ratchet::zero(
-            shasum_from_hex("600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
-                .unwrap(),
-        );
-        let mut two = one.clone();
-        two.inc();
-        let mut twenty_five_thousand = one.clone();
-        twenty_five_thousand.inc_by(25000);
-
-        let mut one_hundred_thousand = one.clone();
-        one_hundred_thousand.inc_by(100_000);
-
-        let mut temp = one.clone();
-        temp.inc_by(65_536);
-
-        struct Cases<'a> {
-            description: &'a str,
-            a: Ratchet,
-            b: Ratchet,
-            max_steps: usize,
-            expect: isize,
-        }
-        let mut cases = vec![
-            Cases {
-                description: "comparing same ratchet",
-                a: one,
-                b: one,
-                max_steps: 0,
-                expect: 0,
-            },
-            Cases {
-                description: "ratchet a is one step behind",
-                a: one,
-                b: two,
-                max_steps: 1,
-                expect: -1,
-            },
-            Cases {
-                description: "ratchet a is one step ahead",
-                a: two,
-                b: one,
-                max_steps: 1,
-                expect: 1,
-            },
-            Cases {
-                description: "ratchet a is 25000 steps ahead",
-                a: twenty_five_thousand,
-                b: one,
-                max_steps: 10,
-                expect: 25000,
-            },
-            Cases {
-                description: "ratchet a is 65_536 steps behind",
-                a: one,
-                b: temp,
-                max_steps: 10,
-                expect: -65_536,
-            },
-            Cases {
-                description: "ratchet a is 100_000 steps behind",
-                a: one,
-                b: one_hundred_thousand,
-                max_steps: 10,
-                expect: -100_000,
-            },
-        ];
-        for c in cases.iter_mut() {
-            let got =
-                c.a.compare(&c.b, c.max_steps)
-                    .unwrap_or_else(|e| panic!("error in case '{}': {:?}", c.description, e));
-            assert_eq!(c.expect, got);
-        }
-
-        let unrelated = Ratchet::zero(
-            shasum_from_hex("500b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
-                .unwrap(),
-        );
-        // panic if this does not error
-        one.compare(&unrelated, 100_000).unwrap_err();
-    }
-
-    #[test]
-    fn test_ratchet_equal() {
-        let a = Ratchet::zero(
-            shasum_from_hex("600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
-                .unwrap(),
-        );
-        let b = Ratchet::zero(
-            shasum_from_hex("600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
-                .unwrap(),
-        );
-        let c = Ratchet::zero(
-            shasum_from_hex("0000000000000000000000000000000000000000000000000000000000000000")
-                .unwrap(),
-        );
-
-        if !a.equal(&b) {
-            panic!("Ratchet::equal method incorrectly asserts two equal ratchets are unequal");
-        }
-
-        if b.equal(&c) {
-            panic!("Ratchet::equal method incorrectly asserts two unequal ratchets are equal")
-        }
-    }
-
-    #[test]
-    fn test_ratchet_previous_equal_error() {
-        let old = Ratchet::zero(
-            shasum_from_hex("600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
-                .unwrap(),
-        );
-        match old.previous(&old, 5) {
-            Ok(r) => panic!("expected PreviousErr::EqualRatchets, got {:?}", r),
-            Err(e) => match e {
-                PreviousErr::EqualRatchets => (),
-                _ => panic!("expected PreviousErr::EqualRatchets, got {:?}", e),
-            },
-        }
-    }
-
-    #[test]
-    fn test_ratchet_previous_older_error() {
-        let old = Ratchet::zero(
-            shasum_from_hex("600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
-                .unwrap(),
-        );
-        let mut recent = old.clone();
-        recent.inc();
-        match old.previous(&recent, 5) {
-            Ok(r) => panic!("expected PreviousErr::EqualRatchets, got {:?}", r),
-            Err(e) => match e {
-                PreviousErr::OlderRatchet => (),
-                _ => panic!("expected PreviousErr::EqualRatchets, got {:?}", e),
-            },
-        }
-    }
-
-    #[test]
-    fn test_ratchet_previous() {
-        let old = Ratchet::zero(
-            shasum_from_hex("600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
-                .unwrap(),
-        );
-        let increments: [usize; 5] = [1, 2, 2000, 20_000, 300_000];
-        let limit = 5;
-
-        for inc in increments.into_iter() {
-            let mut recent = old.clone();
-            recent.inc_by(inc);
-
-            let mut limit = limit;
-            if inc < limit {
-                limit = inc;
-            }
-
-            let mut expect: Vec<Ratchet> = vec![];
-
-            let mut r = old.clone();
-            for i in 0..limit {
-                if i == 0 {
-                    // set up the earliest ratchet we will see in
-                    // the `previous` vector
-                    r.inc_by(inc - limit);
-                } else {
-                    // otherwise, increment by 1
-                    r.inc();
-                }
-                expect.push(r.clone());
-            }
-
-            let got = match recent.previous(&old, limit) {
-                Ok(g) => g,
-                Err(e) => panic!("error for previous with inc {}: {:?}", inc, e),
-            };
-
-            assert_eq!(expect.len(), got.len());
-            for (x, g) in expect.into_iter().rev().zip(got.into_iter()).into_iter() {
-                assert_ratchet_equal(x, g);
-            }
-        }
-    }
-
-    #[test]
-    fn test_xor() {
-        let a = [0; 32];
-        let b = [0; 32];
-        let c = [0; 32];
-        assert_eq!(c, xor(a, b));
-
-        let a = [0xFF; 32];
-        let b = [0xFF; 32];
-        let c = [0; 32];
-        assert_eq!(c, xor(a, b));
-
-        let a = [0xFF; 32];
-        let b = [0; 32];
-        let c = [0xFF; 32];
-        assert_eq!(c, xor(a, b));
-    }
-
-    #[test]
-    fn test_compliment() {
-        let d = [0; 32];
-        let e = [0xFF; 32];
-        assert_eq!(e, compliment(d));
-
-        let d = [0; 32];
-        let e = [0xFF; 32];
-        assert_eq!(e, compliment(d));
-    }
-
-    fn assert_ratchet_equal(expect: Ratchet, got: Ratchet) {
-        assert_eq!(hex::encode(expect.large), hex::encode(got.large));
-        assert_eq!(hex::encode(expect.medium), hex::encode(got.medium));
-        assert_eq!(expect.medium_counter, got.medium_counter);
-        assert_eq!(hex::encode(expect.small), hex::encode(got.small));
-        assert_eq!(expect.small_counter, got.small_counter);
-    }
+    (ratchet.clone(), n)
 }
