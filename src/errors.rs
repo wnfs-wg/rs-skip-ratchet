@@ -7,6 +7,7 @@ use base64::DecodeError;
 
 use crate::constants::RATCHET_SIGNIFIER;
 
+/// This type is used to indicate errors that occur interpreting a `Ratchet`
 #[derive(Debug)]
 pub enum RatchetErr {
     BadLen(usize),
@@ -15,6 +16,7 @@ pub enum RatchetErr {
     Decode(DecodeError),
 }
 
+/// This type is used to indicate errors that occur when getting a previous version of a `Ratchet`.
 #[derive(Debug)]
 pub enum PreviousErr {
     ExhaustedBudget,

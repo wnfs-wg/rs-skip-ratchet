@@ -1,3 +1,5 @@
+use std::cmp;
+
 use hex::FromHex;
 
 use crate::{utils, PreviousErr, Ratchet};
@@ -10,7 +12,7 @@ const SEED: &str = "600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca
 
 #[test]
 fn test_ratchet() {
-    // seed pulled from https://whitepaper.fission.codes/file-system/partitions/private-directories/concepts/spiral-ratchet
+    // Seed pulled from https://whitepaper.fission.codes/file-system/partitions/private-directories/concepts/spiral-ratchet
     let seed = shasum_from_hex(SEED).unwrap();
 
     let a = &mut Ratchet::zero(seed);
@@ -60,13 +62,13 @@ fn test_ratchet_add_256() {
 #[test]
 fn test_ratchet_add_65536() {
     let seed = shasum_from_hex(SEED).unwrap();
-    // manually advance ratchet (2 ^ 16) times
+    // Manually advance ratchet (2 ^ 16) times
     let slow = &mut Ratchet::zero(seed);
     for _ in 0..65536 {
         slow.inc();
     }
 
-    // fast jump (2 ^ 16) values in one shot
+    // Fast jump (2 ^ 16) values in one shot
     let (ref fast, _) = Ratchet::zero(seed).next_large_epoch();
 
     assert_ratchet_equal(slow, fast);
@@ -165,7 +167,8 @@ fn test_ratchet_compare() {
         shasum_from_hex("500b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
             .unwrap(),
     );
-    // panic if this does not error
+
+    // Panic if this does not error
     one.compare(&unrelated, 100_000).unwrap_err();
 }
 
@@ -191,7 +194,7 @@ fn test_ratchet_equal() {
 fn test_ratchet_previous_equal_error() {
     let old = Ratchet::zero(shasum_from_hex(SEED).unwrap());
     match old.previous(&old, 5) {
-        Ok(r) => panic!("expected PreviousErr::EqualRatchets, got {:?}", r),
+        Ok(_) => panic!("expected PreviousErr::EqualRatchets, got an iterator instead"),
         Err(e) => match e {
             PreviousErr::EqualRatchets => (),
             _ => panic!("expected PreviousErr::EqualRatchets, got {:?}", e),
@@ -205,7 +208,7 @@ fn test_ratchet_previous_older_error() {
     let mut recent = old.clone();
     recent.inc();
     match old.previous(&recent, 5) {
-        Ok(r) => panic!("expected PreviousErr::EqualRatchets, got {:?}", r),
+        Ok(_) => panic!("expected PreviousErr::EqualRatchets, got an iterator instead"),
         Err(e) => match e {
             PreviousErr::OlderRatchet => (),
             _ => panic!("expected PreviousErr::EqualRatchets, got {:?}", e),
@@ -223,33 +226,28 @@ fn test_ratchet_previous() {
         let mut recent = old.clone();
         recent.inc_by(inc);
 
-        let mut limit = limit;
-        if inc < limit {
-            limit = inc;
-        }
+        let limit = cmp::min(limit, inc);
 
         let mut expect: Vec<Ratchet> = vec![];
-
         let mut r = old.clone();
         for i in 0..limit {
             if i == 0 {
-                // set up the earliest ratchet we will see in
-                // the `previous` vector
+                // Set up the earliest ratchet we will see in the `previous` vector
                 r.inc_by(inc - limit);
             } else {
-                // otherwise, increment by 1
+                // Otherwise, increment by 1
                 r.inc();
             }
             expect.push(r.clone());
         }
 
         let got = match recent.previous(&old, limit) {
-            Ok(g) => g,
+            Ok(iter) => iter.collect::<Vec<_>>(),
             Err(e) => panic!("error for previous with inc {}: {:?}", inc, e),
         };
 
         assert_eq!(expect.len(), got.len());
-        for (ref x, ref g) in expect.into_iter().rev().zip(got.into_iter()) {
+        for (x, g) in expect.iter().rev().zip(got.iter()) {
             assert_ratchet_equal(x, g);
         }
     }
@@ -260,28 +258,28 @@ fn test_xor() {
     let a = [0; 32];
     let b = [0; 32];
     let c = [0; 32];
-    assert_eq!(c, utils::xor(a, b));
+    assert_eq!(c, utils::xor(&a, &b));
 
     let a = [0xFF; 32];
     let b = [0xFF; 32];
     let c = [0; 32];
-    assert_eq!(c, utils::xor(a, b));
+    assert_eq!(c, utils::xor(&a, &b));
 
     let a = [0xFF; 32];
     let b = [0; 32];
     let c = [0xFF; 32];
-    assert_eq!(c, utils::xor(a, b));
+    assert_eq!(c, utils::xor(&a, &b));
 }
 
 #[test]
 fn test_compliment() {
     let d = [0; 32];
     let e = [0xFF; 32];
-    assert_eq!(e, utils::compliment(d));
+    assert_eq!(e, utils::compliment(&d));
 
     let d = [0; 32];
     let e = [0xFF; 32];
-    assert_eq!(e, utils::compliment(d));
+    assert_eq!(e, utils::compliment(&d));
 }
 
 fn assert_ratchet_equal(expect: &Ratchet, got: &Ratchet) {
