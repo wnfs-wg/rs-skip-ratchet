@@ -5,7 +5,8 @@ use std::{
 
 use crate::{
     constants::{DEFAULT_PREV_BUDGET, RATCHET_SIGNIFIER},
-    utils, PreviousErr, RatchetErr,
+    hash::Hash,
+    PreviousErr, RatchetErr,
 };
 use rand::Rng;
 
@@ -23,13 +24,13 @@ use rand::Rng;
 /// let key = ratchet.key();
 /// ```
 ///
-/// [1]: https://github.com/fission-suite/skip-ratchet-paper/blob/initial-draft/spiral-ratchet.pdf
+/// [1]: https://github.com/fission-suite/skip-ratchet-paper/blob/main/spiral-ratchet.pdf
 #[derive(Clone, PartialEq, Debug, Eq)]
 pub struct Ratchet {
-    pub(crate) large: [u8; 32],
-    pub(crate) medium: [u8; 32],
+    pub(crate) large: Hash,
+    pub(crate) medium: Hash,
+    pub(crate) small: Hash,
     pub(crate) medium_counter: u8,
-    pub(crate) small: [u8; 32],
     pub(crate) small_counter: u8,
 }
 
@@ -53,6 +54,10 @@ pub struct Ratchet {
 /// ```
 #[derive(Clone, Debug)]
 pub struct PreviousIterator {
+    // large_skips: Vec<Ratchet>,
+    // medium_skips: Vec<Ratchet>,
+    // small_skips: Vec<Ratchet>,
+    // index: usize,
     revisions: Vec<Ratchet>,
 }
 
@@ -122,29 +127,37 @@ impl Ratchet {
     /// ```
     pub fn new() -> Self {
         // 32 bytes for the seed, plus two extra bytes to randomize small & medium starts
-        let seed: [u8; 32] = rand::thread_rng().gen::<[u8; 32]>();
+        let seed = Hash::from_raw(rand::thread_rng().gen::<[u8; 32]>());
+        let medium = Hash::from(&!seed);
+        let small = Hash::from(&!medium);
+
         let inc_med = rand::thread_rng().gen::<u8>();
         let inc_small = rand::thread_rng().gen::<u8>();
-        let med_seed = utils::hash_32(&utils::compliment(&seed));
-        let small_seed = utils::hash_32(&utils::compliment(&med_seed));
 
         Ratchet {
-            large: utils::hash_32(&seed),
-            medium: utils::hash_32_n(med_seed, inc_med),
+            large: Hash::from(&seed),
+            medium: Hash::from_chain(&medium, inc_med.into()),
+            small: Hash::from_chain(&small, inc_small.into()),
             medium_counter: inc_med,
-            small: utils::hash_32_n(small_seed, inc_small),
             small_counter: inc_small,
         }
     }
 
+    // TODO(appcypher): Make zero take Hash instead.
     /// Creates a new ratchet from a seed with zero counters.
     pub(crate) fn zero(seed: [u8; 32]) -> Self {
-        let med = utils::hash_32(&utils::compliment(&seed));
+        let seed = Hash::from_raw(seed);
+
+        // TODO(appcypher): Looks like & makes all the difference.
+        // Hash::from<T> is doing funky stuff!
+        let medium = Hash::from(&!seed);
+        let small = Hash::from(&!medium);
+
         Ratchet {
-            large: utils::hash_32(&seed),
-            medium: med,
+            large: Hash::from(&seed),
+            medium,
+            small,
             medium_counter: 0,
-            small: utils::hash_32(&utils::compliment(&med)),
             small_counter: 0,
         }
     }
@@ -159,9 +172,8 @@ impl Ratchet {
     /// let ratchet = Ratchet::new();
     /// let key = ratchet.key();
     /// ```
-    pub fn key(&self) -> [u8; 32] {
-        let v = utils::xor(&self.large, &utils::xor(&self.medium, &self.small));
-        utils::hash_32(&v)
+    pub fn key(&self) -> Hash {
+        Hash::from(&(self.large ^ self.medium ^ self.small))
     }
 
     /// Moves the ratchet forward by one step.
@@ -181,7 +193,7 @@ impl Ratchet {
             return;
         }
 
-        self.small = utils::hash_32(&self.small);
+        self.small = Hash::from(&self.small);
         self.small_counter += 1;
     }
 
@@ -222,8 +234,8 @@ impl Ratchet {
         // Since the two ratches might just be generated from a totally different setup, we can never _really_ know which one is the bigger one.
         // They might be unrelated.
         while steps_left > 0 {
-            self_large = utils::hash_32(&self_large);
-            other_large = utils::hash_32(&other_large);
+            self_large = Hash::from(&self_large);
+            other_large = Hash::from(&other_large);
             steps += 1;
 
             if other_large == self.large {
@@ -320,7 +332,7 @@ impl Ratchet {
     /// ```
     pub fn next_large_epoch(&self) -> (Ratchet, usize) {
         (
-            Ratchet::zero(self.large),
+            Ratchet::zero(self.large.as_slice().clone()),
             256 * 256 - self.combined_counter(),
         )
     }
@@ -342,9 +354,9 @@ impl Ratchet {
 
         let jumped = Ratchet {
             large: self.large,
-            medium: utils::hash_32(&self.medium),
+            medium: Hash::from(&self.medium),
             medium_counter: self.medium_counter + 1,
-            small: utils::hash_32(&utils::compliment(&self.medium)),
+            small: Hash::from(&!self.medium),
             small_counter: 0,
         };
 
@@ -374,11 +386,11 @@ impl TryFrom<String> for Ratchet {
         let d = base64::decode_config(&string[2..], base64::URL_SAFE_NO_PAD)?;
 
         let mut ratchet = Ratchet {
-            small: [0; 32],
+            large: Hash::zero(),
+            medium: Hash::zero(),
+            small: Hash::zero(),
             small_counter: 0,
-            medium: [0; 32],
             medium_counter: 0,
-            large: [0; 32],
         };
 
         for (i, byte) in d.iter().enumerate() {
@@ -431,9 +443,9 @@ impl Iterator for PreviousIterator {
 impl Display for Ratchet {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("Ratchet")
-            .field("small", &self.small[0..3].to_vec())
-            .field("medium", &self.medium[0..3].to_vec())
-            .field("large", &self.large[0..3].to_vec())
+            .field("small", &self.small.as_slice()[0..3].to_vec())
+            .field("medium", &self.medium.as_slice()[0..3].to_vec())
+            .field("large", &self.large.as_slice()[0..3].to_vec())
             .field("small_counter", &self.small_counter)
             .field("medium_counter", &self.medium_counter)
             .finish()
@@ -453,7 +465,7 @@ pub(crate) fn inc_by(ratchet: &mut Ratchet, n: usize) -> (Ratchet, usize) {
         return inc_by(&mut jumped, n - jump_count);
     }
 
-    ratchet.small = utils::hash_32_n(ratchet.small, n as u8);
+    ratchet.small = Hash::from_chain(&ratchet.small, n);
     ratchet.small_counter += n as u8;
 
     (ratchet.clone(), n)

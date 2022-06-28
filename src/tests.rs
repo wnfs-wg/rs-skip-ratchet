@@ -2,35 +2,33 @@ use std::cmp;
 
 use hex::FromHex;
 
-use crate::{utils, PreviousErr, Ratchet};
+use crate::{hash::Hash, PreviousErr, Ratchet};
 
-fn shasum_from_hex(s: &str) -> Result<[u8; 32], hex::FromHexError> {
-    <[u8; 32]>::from_hex(s)
+fn hash_from_hex(s: &str) -> Hash {
+    Hash::from_raw(<[u8; 32]>::from_hex(s).unwrap())
 }
 
 const SEED: &str = "600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33";
 
 #[test]
-fn test_ratchet() {
+fn test_ratchet_zero() {
     // Seed pulled from https://whitepaper.fission.codes/file-system/partitions/private-directories/concepts/spiral-ratchet
-    let seed = shasum_from_hex(SEED).unwrap();
+    let seed = hash_from_hex(SEED);
 
-    let a = &mut Ratchet::zero(seed);
+    let a = &mut Ratchet::zero(seed.into());
     let expect = &Ratchet {
-        large: shasum_from_hex("5aa00b14dd50887cdc0b0b55aa2da1eb5cc3a79cdbe893b2319da378a83ad0c5")
-            .unwrap(),
-        medium: shasum_from_hex("5a86c2477e2ae4ffcf6373cce82259eb542b72a72db9cf9cddfe06bcc20623b6")
-            .unwrap(),
+        large: hash_from_hex("5aa00b14dd50887cdc0b0b55aa2da1eb5cc3a79cdbe893b2319da378a83ad0c5"),
+        medium: hash_from_hex("5a86c2477e2ae4ffcf6373cce82259eb542b72a72db9cf9cddfe06bcc20623b6"),
+        small: hash_from_hex("962b7f9ac204ffd0fa398e9c875c90806c0cd6646655f7a5994b7a828b70c0da"),
         medium_counter: 0,
-        small: shasum_from_hex("962b7f9ac204ffd0fa398e9c875c90806c0cd6646655f7a5994b7a828b70c0da")
-            .unwrap(),
         small_counter: 0,
     };
+
     assert_ratchet_equal(expect, a);
 
     a.inc();
 
-    let b = &mut Ratchet::zero(seed);
+    let b = &mut Ratchet::zero(seed.into());
     b.inc();
 
     assert_ratchet_equal(a, b);
@@ -42,15 +40,15 @@ fn test_ratchet() {
 
 #[test]
 fn test_ratchet_add_256() {
-    let seed = shasum_from_hex(SEED).unwrap();
+    let seed = hash_from_hex(SEED);
     // manually advance ratchet 256 (2 ^ 8) times
-    let slow = &mut Ratchet::zero(seed);
+    let slow = &mut Ratchet::zero(seed.into());
     for _ in 0..256 {
         slow.inc();
     }
 
     // fast jump 256 values in one shot
-    let (ref fast, _) = Ratchet::zero(seed).next_medium_epoch();
+    let (ref fast, _) = Ratchet::zero(seed.into()).next_medium_epoch();
     assert_ratchet_equal(slow, fast);
 }
 
@@ -61,24 +59,24 @@ fn test_ratchet_add_256() {
 
 #[test]
 fn test_ratchet_add_65536() {
-    let seed = shasum_from_hex(SEED).unwrap();
+    let seed = hash_from_hex(SEED);
     // Manually advance ratchet (2 ^ 16) times
-    let slow = &mut Ratchet::zero(seed);
+    let slow = &mut Ratchet::zero(seed.into());
     for _ in 0..65536 {
         slow.inc();
     }
 
     // Fast jump (2 ^ 16) values in one shot
-    let (ref fast, _) = Ratchet::zero(seed).next_large_epoch();
+    let (ref fast, _) = Ratchet::zero(seed.into()).next_large_epoch();
 
     assert_ratchet_equal(slow, fast);
 }
 
 #[test]
 fn test_ratchet_coding() {
-    let seed = shasum_from_hex(SEED).unwrap();
+    let seed = hash_from_hex(SEED);
 
-    let a = &Ratchet::zero(seed);
+    let a = &Ratchet::zero(seed.into());
 
     let encoded: String = a.into();
 
@@ -89,7 +87,7 @@ fn test_ratchet_coding() {
 
 #[test]
 fn test_ratchet_compare() {
-    let one = &mut Ratchet::zero(shasum_from_hex(SEED).unwrap());
+    let one = &mut Ratchet::zero(hash_from_hex(SEED).into());
 
     let two = &mut one.clone();
     two.inc();
@@ -160,12 +158,12 @@ fn test_ratchet_compare() {
         let got =
             c.a.compare(c.b, c.max_steps)
                 .unwrap_or_else(|e| panic!("error in case '{}': {:?}", c.description, e));
+
         assert_eq!(c.expect, got);
     }
 
     let unrelated = Ratchet::zero(
-        shasum_from_hex("500b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33")
-            .unwrap(),
+        hash_from_hex("500b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33").into(),
     );
 
     // Panic if this does not error
@@ -174,11 +172,10 @@ fn test_ratchet_compare() {
 
 #[test]
 fn test_ratchet_equal() {
-    let a = Ratchet::zero(shasum_from_hex(SEED).unwrap());
-    let b = Ratchet::zero(shasum_from_hex(SEED).unwrap());
+    let a = Ratchet::zero(hash_from_hex(SEED).into());
+    let b = Ratchet::zero(hash_from_hex(SEED).into());
     let c = Ratchet::zero(
-        shasum_from_hex("0000000000000000000000000000000000000000000000000000000000000000")
-            .unwrap(),
+        hash_from_hex("0000000000000000000000000000000000000000000000000000000000000000").into(),
     );
 
     if a != b {
@@ -192,7 +189,7 @@ fn test_ratchet_equal() {
 
 #[test]
 fn test_ratchet_previous_equal_error() {
-    let old = Ratchet::zero(shasum_from_hex(SEED).unwrap());
+    let old = Ratchet::zero(hash_from_hex(SEED).into());
     match old.previous(&old, 5) {
         Ok(_) => panic!("expected PreviousErr::EqualRatchets, got an iterator instead"),
         Err(e) => match e {
@@ -204,7 +201,7 @@ fn test_ratchet_previous_equal_error() {
 
 #[test]
 fn test_ratchet_previous_older_error() {
-    let old = Ratchet::zero(shasum_from_hex(SEED).unwrap());
+    let old = Ratchet::zero(hash_from_hex(SEED).into());
     let mut recent = old.clone();
     recent.inc();
     match old.previous(&recent, 5) {
@@ -218,7 +215,7 @@ fn test_ratchet_previous_older_error() {
 
 #[test]
 fn test_ratchet_previous() {
-    let old = Ratchet::zero(shasum_from_hex(SEED).unwrap());
+    let old = Ratchet::zero(hash_from_hex(SEED).into());
     let increments: [usize; 5] = [1, 2, 2000, 20_000, 300_000];
     let limit = 5;
 
@@ -253,39 +250,10 @@ fn test_ratchet_previous() {
     }
 }
 
-#[test]
-fn test_xor() {
-    let a = [0; 32];
-    let b = [0; 32];
-    let c = [0; 32];
-    assert_eq!(c, utils::xor(&a, &b));
-
-    let a = [0xFF; 32];
-    let b = [0xFF; 32];
-    let c = [0; 32];
-    assert_eq!(c, utils::xor(&a, &b));
-
-    let a = [0xFF; 32];
-    let b = [0; 32];
-    let c = [0xFF; 32];
-    assert_eq!(c, utils::xor(&a, &b));
-}
-
-#[test]
-fn test_compliment() {
-    let d = [0; 32];
-    let e = [0xFF; 32];
-    assert_eq!(e, utils::compliment(&d));
-
-    let d = [0; 32];
-    let e = [0xFF; 32];
-    assert_eq!(e, utils::compliment(&d));
-}
-
 fn assert_ratchet_equal(expect: &Ratchet, got: &Ratchet) {
-    assert_eq!(hex::encode(expect.large), hex::encode(got.large));
-    assert_eq!(hex::encode(expect.medium), hex::encode(got.medium));
+    assert_eq!(expect.large, got.large);
+    assert_eq!(expect.medium, got.medium);
     assert_eq!(expect.medium_counter, got.medium_counter);
-    assert_eq!(hex::encode(expect.small), hex::encode(got.small));
+    assert_eq!(expect.small, got.small);
     assert_eq!(expect.small_counter, got.small_counter);
 }
