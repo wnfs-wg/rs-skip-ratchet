@@ -230,7 +230,7 @@ fn test_ratchet_previous_increments() {
         let mut recent_ratchet = old.clone();
         recent_ratchet.inc_by(inc);
         let got_ratchets = match recent_ratchet.previous(&old, discrepancy_budget) {
-            Ok(iter) => iter.collect::<Result<Vec<_>, _>>().unwrap(),
+            Ok(iter) => iter.collect::<Vec<_>>(),
             Err(e) => panic!("error for previous with inc {}: {:?}", inc, e),
         };
 
@@ -244,27 +244,21 @@ fn test_ratchet_previous_increments() {
 #[test]
 fn test_ratchet_previous_budget() {
     let old_ratchet = Ratchet::zero(hash_from_hex(SEED).into());
-    let increments = [1, 260, 65_600];
+    let increments = [(65_600, 65_500), (131_100, 131_000)];
 
-    for inc in increments.into_iter() {
+    for (inc, budget) in increments.into_iter() {
         let mut recent_ratchet = old_ratchet.clone();
         recent_ratchet.inc_by(inc);
-        let result = recent_ratchet
-            .previous(&old_ratchet, inc - 1)
-            .unwrap()
-            .collect::<Result<Vec<_>, _>>();
-
-        assert_eq!(result, Err(PreviousErr::BudgetExceeded));
+        let result = recent_ratchet.previous(&old_ratchet, budget);
+        assert_eq!(result.unwrap_err(), PreviousErr::BudgetExceeded);
     }
 
-    for inc in increments.into_iter() {
+    let increments = [(65_535, 10), (65_600, 65_600)];
+
+    for (inc, budget) in increments.into_iter() {
         let mut recent_ratchet = old_ratchet.clone();
         recent_ratchet.inc_by(inc);
-        let result = recent_ratchet
-            .previous(&old_ratchet, inc)
-            .unwrap()
-            .collect::<Result<Vec<_>, _>>();
-
+        let result = recent_ratchet.previous(&old_ratchet, budget);
         assert!(result.is_ok());
     }
 }
