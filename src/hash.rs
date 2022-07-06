@@ -1,11 +1,12 @@
 use std::{
+    fmt::Debug,
     ops::{BitXor, Index, IndexMut, Not},
     slice::Iter,
 };
 
 use sha3::{Digest, Sha3_256};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Hash(pub [u8; 32]);
 
 impl Hash {
@@ -91,6 +92,22 @@ impl From<Hash> for [u8; 32] {
     #[inline]
     fn from(hash: Hash) -> Self {
         hash.0
+    }
+}
+
+impl Debug for Hash {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "0x")?;
+        for (i, byte) in self.0.iter().enumerate() {
+            if i > 6 {
+                write!(f, "..")?;
+                break;
+            } else {
+                write!(f, "{:02X}", byte)?;
+            }
+        }
+
+        Ok(())
     }
 }
 

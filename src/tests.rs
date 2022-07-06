@@ -1,4 +1,4 @@
-use std::cmp;
+use std::vec;
 
 use hex::FromHex;
 
@@ -190,7 +190,7 @@ fn test_ratchet_equal() {
 #[test]
 fn test_ratchet_previous_equal_error() {
     let old = Ratchet::zero(hash_from_hex(SEED).into());
-    match old.previous(&old, 5) {
+    match old.previous(&old, 10) {
         Ok(_) => panic!("expected PreviousErr::EqualRatchets, got an iterator instead"),
         Err(e) => match e {
             PreviousErr::EqualRatchets => (),
@@ -204,7 +204,7 @@ fn test_ratchet_previous_older_error() {
     let old = Ratchet::zero(hash_from_hex(SEED).into());
     let mut recent = old.clone();
     recent.inc();
-    match old.previous(&recent, 5) {
+    match old.previous(&recent, 10) {
         Ok(_) => panic!("expected PreviousErr::EqualRatchets, got an iterator instead"),
         Err(e) => match e {
             PreviousErr::OlderRatchet => (),
@@ -214,46 +214,65 @@ fn test_ratchet_previous_older_error() {
 }
 
 #[test]
-fn test_ratchet_previous() {
+fn test_ratchet_previous_increments() {
+    let discrepancy_budget = 1_000_000;
     let old = Ratchet::zero(hash_from_hex(SEED).into());
-    let increments: [usize; 5] = [1, 2, 2000, 20_000, 300_000];
-    let limit = 5;
+    let increments = [1, 260, 65_600, 131_100];
 
     for inc in increments.into_iter() {
-        let mut recent = old.clone();
-        recent.inc_by(inc);
-
-        let limit = cmp::min(limit, inc);
-
-        let mut expect: Vec<Ratchet> = vec![];
-        let mut r = old.clone();
-        for i in 0..limit {
-            if i == 0 {
-                // Set up the earliest ratchet we will see in the `previous` vector
-                r.inc_by(inc - limit);
-            } else {
-                // Otherwise, increment by 1
-                r.inc();
-            }
-            expect.push(r.clone());
+        let mut expected_ratchets = vec![old.clone()];
+        let mut ratchet = old.clone();
+        for _ in 1..inc {
+            ratchet.inc();
+            expected_ratchets.push(ratchet.clone());
         }
 
-        let got = match recent.previous(&old, limit) {
-            Ok(iter) => iter.collect::<Vec<_>>(),
+        let mut recent_ratchet = old.clone();
+        recent_ratchet.inc_by(inc);
+        let got_ratchets = match recent_ratchet.previous(&old, discrepancy_budget) {
+            Ok(iter) => iter.collect::<Result<Vec<_>, _>>().unwrap(),
             Err(e) => panic!("error for previous with inc {}: {:?}", inc, e),
         };
 
-        assert_eq!(expect.len(), got.len());
-        for (x, g) in expect.iter().rev().zip(got.iter()) {
-            assert_ratchet_equal(x, g);
+        assert_eq!(expected_ratchets.len(), got_ratchets.len());
+        for (expected, got) in expected_ratchets.iter().rev().zip(got_ratchets.iter()) {
+            assert_ratchet_equal(expected, got);
         }
     }
 }
 
-fn assert_ratchet_equal(expect: &Ratchet, got: &Ratchet) {
-    assert_eq!(expect.large, got.large);
-    assert_eq!(expect.medium, got.medium);
-    assert_eq!(expect.medium_counter, got.medium_counter);
-    assert_eq!(expect.small, got.small);
-    assert_eq!(expect.small_counter, got.small_counter);
+#[test]
+fn test_ratchet_previous_budget() {
+    let old_ratchet = Ratchet::zero(hash_from_hex(SEED).into());
+    let increments = [1, 260, 65_600];
+
+    for inc in increments.into_iter() {
+        let mut recent_ratchet = old_ratchet.clone();
+        recent_ratchet.inc_by(inc);
+        let result = recent_ratchet
+            .previous(&old_ratchet, inc - 1)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>();
+
+        assert_eq!(result, Err(PreviousErr::BudgetExceeded));
+    }
+
+    for inc in increments.into_iter() {
+        let mut recent_ratchet = old_ratchet.clone();
+        recent_ratchet.inc_by(inc);
+        let result = recent_ratchet
+            .previous(&old_ratchet, inc)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>();
+
+        assert!(result.is_ok());
+    }
+}
+
+fn assert_ratchet_equal(expected: &Ratchet, got: &Ratchet) {
+    assert_eq!(expected.large, got.large);
+    assert_eq!(expected.medium, got.medium);
+    assert_eq!(expected.small, got.small);
+    assert_eq!(expected.medium_counter, got.medium_counter);
+    assert_eq!(expected.small_counter, got.small_counter);
 }

@@ -1,7 +1,7 @@
 mod constants;
 mod errors;
-pub mod ratchet;
 mod hash;
+pub mod ratchet;
 
 #[cfg(test)]
 mod tests;

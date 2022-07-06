@@ -17,9 +17,9 @@ pub enum RatchetErr {
 }
 
 /// This type is used to indicate errors that occur when getting a previous version of a `Ratchet`.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum PreviousErr {
-    ExhaustedBudget,
+    BudgetExceeded,
     EqualRatchets,
     OlderRatchet,
 }
@@ -57,9 +57,9 @@ impl From<DecodeError> for RatchetErr {
 impl Display for PreviousErr {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
-            PreviousErr::ExhaustedBudget => write!(f, "exhausted ratchet discrepency budget"),
+            PreviousErr::BudgetExceeded => write!(f, "ratchet discrepancy budget exceeded"),
             PreviousErr::EqualRatchets => write!(f, "ratchets are equal"),
-            PreviousErr::OlderRatchet => write!(f, "self ratchet is older than given ratchet"),
+            PreviousErr::OlderRatchet => write!(f, "current ratchet is older than given ratchet"),
         }
     }
 }

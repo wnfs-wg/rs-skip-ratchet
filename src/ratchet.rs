@@ -1,10 +1,7 @@
-use std::{
-    cmp,
-    fmt::{self, Display, Formatter},
-};
+use std::fmt::{self, Display, Formatter};
 
 use crate::{
-    constants::{DEFAULT_PREV_BUDGET, RATCHET_SIGNIFIER},
+    constants::{LARGE_EPOCH_LENGTH, MEDIUM_EPOCH_LENGTH, RATCHET_SIGNIFIER},
     hash::Hash,
     PreviousErr, RatchetErr,
 };
@@ -42,77 +39,23 @@ pub struct Ratchet {
 /// ```
 /// use skip_ratchet::Ratchet;
 ///
-/// let mut ratchet1 = Ratchet::new();
-/// ratchet1.inc_by(10);
+/// let mut old_ratchet = Ratchet::new();
+/// old_ratchet.inc_by(10);
 ///
-/// let mut ratchet2 = ratchet1.clone();
-/// ratchet2.inc_by(10);
+/// let mut recent_ratchet = old_ratchet.clone();
+/// recent_ratchet.inc_by(10);
 ///
-/// for r in ratchet2.previous(&ratchet1, 10) {
-///   println!("{:?}", r);
+/// for r in recent_ratchet.previous(&old_ratchet, 10).unwrap() {
+///   println!("{:?}", r.unwrap());
 /// }
 /// ```
 #[derive(Clone, Debug)]
 pub struct PreviousIterator {
-    // large_skips: Vec<Ratchet>,
-    // medium_skips: Vec<Ratchet>,
-    // small_skips: Vec<Ratchet>,
-    // index: usize,
-    revisions: Vec<Ratchet>,
-}
-
-impl PreviousIterator {
-    /// Create a new `PreviousIterator`
-    pub fn new(
-        recent: &Ratchet,
-        old: &Ratchet,
-        discrepancy_budget: usize,
-        limit: usize,
-    ) -> Result<Self, PreviousErr> {
-        let mut discrepancy_budget = discrepancy_budget as isize;
-        let mut old = old.clone();
-
-        while discrepancy_budget != 0 {
-            // We gotta check if we can skip large epochs.
-            let (old_next_large, old_next_large_steps_done) = old.next_large_epoch();
-            if recent.large != old.large && recent.large != old_next_large.large {
-                discrepancy_budget -= old_next_large_steps_done as isize;
-                old = old_next_large;
-                continue;
-            }
-
-            // We also gotta check if we can skip medium epochs.
-            let (old_next_medium, old_next_medium_steps_done) = old.next_medium_epoch();
-            if recent.medium != old.medium && recent.medium != old_next_medium.medium {
-                discrepancy_budget -= old_next_medium_steps_done as isize;
-                old = old_next_medium;
-                continue;
-            }
-
-            let revisions = Self::get_revisions(recent, &old, limit);
-
-            return Ok(Self { revisions });
-        }
-
-        Err(PreviousErr::ExhaustedBudget)
-    }
-
-    fn get_revisions(recent: &Ratchet, old: &Ratchet, limit: usize) -> Vec<Ratchet> {
-        let mut revision = old.clone();
-        let mut revisions = vec![old.clone()];
-        let mut next = old.clone();
-        next.inc();
-
-        while &next != recent {
-            revision.inc();
-            next.inc();
-            revisions.push(revision.clone());
-        }
-
-        let limit = cmp::min(limit, revisions.len());
-
-        revisions[revisions.len() - limit..].to_vec()
-    }
+    large_skips: Vec<Ratchet>,
+    medium_skips: Vec<Ratchet>,
+    small_skips: Vec<Ratchet>,
+    recent: Ratchet,
+    discrepancy_budget: usize,
 }
 
 impl Ratchet {
@@ -143,13 +86,10 @@ impl Ratchet {
         }
     }
 
-    // TODO(appcypher): Make zero take Hash instead.
     /// Creates a new ratchet from a seed with zero counters.
     pub(crate) fn zero(seed: [u8; 32]) -> Self {
         let seed = Hash::from_raw(seed);
 
-        // TODO(appcypher): Looks like & makes all the difference.
-        // Hash::from<T> is doing funky stuff!
         let medium = Hash::from(&!seed);
         let small = Hash::from(&!medium);
 
@@ -239,16 +179,16 @@ impl Ratchet {
             steps += 1;
 
             if other_large == self.large {
-                // Other_large_counter * 256 * 256 is the count of increments applied via advancing the large digit continually.
+                // Other_large_counter * LARGE_EPOCH_LENGTH is the count of increments applied via advancing the large digit continually.
                 // -other_large_counter is the difference between 'other' and its next large epoch.
                 // self_counter is just what's self to add because of the count at which 'self' is
-                return Ok((steps * 256 * 256) - (other_counter + self_counter));
+                return Ok((steps * LARGE_EPOCH_LENGTH as isize) - (other_counter + self_counter));
             }
 
             if self_large == other.large {
                 // In this case, we compute the same difference, but return the negative to indicate that 'other' is bigger that
                 // 'self' rather than the other way around.
-                return Ok(-(steps * 256 * 256) - (self_counter + other_counter));
+                return Ok(-(steps * LARGE_EPOCH_LENGTH as isize) - (self_counter + other_counter));
             }
             steps_left -= 1;
         }
@@ -284,24 +224,28 @@ impl Ratchet {
     /// ```
     /// use skip_ratchet::Ratchet;
     ///
-    /// let mut ratchet1 = Ratchet::new();
-    /// ratchet1.inc_by(10);
+    /// let mut old_ratchet = Ratchet::new();
+    /// old_ratchet.inc_by(10);
     ///
-    /// let mut ratchet2 = ratchet1.clone();
-    /// ratchet2.inc_by(10);
+    /// let mut recent_ratchet = old_ratchet.clone();
+    /// recent_ratchet.inc_by(10);
     ///
-    /// for r in ratchet2.previous(&ratchet1, 10) {
-    ///   println!("{:?}", r);
+    /// for r in recent_ratchet.previous(&old_ratchet, 10).unwrap() {
+    ///   println!("{:?}", r.unwrap());
     /// }
     /// ```
-    pub fn previous(&self, old: &Ratchet, limit: usize) -> Result<PreviousIterator, PreviousErr> {
+    pub fn previous(
+        &self,
+        old: &Ratchet,
+        discrepancy_budget: usize,
+    ) -> Result<PreviousIterator, PreviousErr> {
         if self == old {
             return Err(PreviousErr::EqualRatchets);
         } else if old.known_after(self) {
             return Err(PreviousErr::OlderRatchet);
         }
 
-        PreviousIterator::new(self, old, DEFAULT_PREV_BUDGET, limit)
+        PreviousIterator::new(old, self, discrepancy_budget)
     }
 
     /// Get the entire hash count of the ratchet.
@@ -317,7 +261,7 @@ impl Ratchet {
     /// println!("{:?}", ratchet.combined_counter());
     /// ```
     pub fn combined_counter(&self) -> usize {
-        (256 * self.medium_counter as usize) + self.small_counter as usize
+        (MEDIUM_EPOCH_LENGTH * self.medium_counter as usize) + self.small_counter as usize
     }
 
     /// Returns the next large epoch of the ratchet.
@@ -333,7 +277,7 @@ impl Ratchet {
     pub fn next_large_epoch(&self) -> (Ratchet, usize) {
         (
             Ratchet::zero(self.large.as_slice().clone()),
-            256 * 256 - self.combined_counter(),
+            LARGE_EPOCH_LENGTH - self.combined_counter(),
         )
     }
 
@@ -362,6 +306,22 @@ impl Ratchet {
 
         let jump_count = jumped.combined_counter() - self.combined_counter();
         (jumped, jump_count)
+    }
+
+    /// Returns the next small epoch of the ratchet.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skip_ratchet::Ratchet;
+    ///
+    /// let mut ratchet = Ratchet::new();
+    /// let r = ratchet.next_small_epoch();
+    /// ```
+    pub fn next_small_epoch(&self) -> Ratchet {
+        let mut ratchet = self.clone();
+        ratchet.inc();
+        ratchet
     }
 }
 
@@ -432,11 +392,108 @@ impl From<&Ratchet> for String {
     }
 }
 
+enum Budget {
+    Large,
+    Medium,
+    Small,
+}
+
+impl PreviousIterator {
+    pub fn new(
+        old: &Ratchet,
+        recent: &Ratchet,
+        discrepancy_budget: usize,
+    ) -> Result<Self, PreviousErr> {
+        let mut iter = Self {
+            large_skips: vec![old.clone()],
+            medium_skips: vec![],
+            small_skips: vec![],
+            recent: recent.clone(),
+            discrepancy_budget,
+        };
+
+        let mut old_ratchet_large = old.clone();
+        while old_ratchet_large.large != recent.large {
+            (old_ratchet_large, _) = old_ratchet_large.next_large_epoch();
+            iter.large_skips.push(old_ratchet_large.clone());
+            iter.check_budget(Budget::Large)?;
+        }
+
+        Ok(iter)
+    }
+
+    fn check_budget(&mut self, kind: Budget) -> Result<(), PreviousErr> {
+        let small_skips = match kind {
+            Budget::Large => {
+                LARGE_EPOCH_LENGTH * (self.large_skips.len().checked_sub(1).unwrap_or(0))
+            }
+            Budget::Medium => {
+                LARGE_EPOCH_LENGTH * self.large_skips.len()
+                    + MEDIUM_EPOCH_LENGTH * (self.medium_skips.len().checked_sub(1).unwrap_or(0))
+                    + self.small_skips.len()
+            }
+            Budget::Small => {
+                LARGE_EPOCH_LENGTH * self.large_skips.len()
+                    + MEDIUM_EPOCH_LENGTH * self.medium_skips.len()
+                    + self.small_skips.len()
+            }
+        };
+
+        if small_skips > self.discrepancy_budget {
+            return Err(PreviousErr::BudgetExceeded);
+        }
+
+        Ok(())
+    }
+}
+
 impl Iterator for PreviousIterator {
-    type Item = Ratchet;
+    type Item = Result<Ratchet, PreviousErr>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.revisions.pop()
+        while !(self.large_skips.is_empty()
+            && self.medium_skips.is_empty()
+            && self.small_skips.is_empty())
+        {
+            if self.medium_skips.is_empty() && self.small_skips.is_empty() {
+                let old_ratchet_large = self.large_skips.pop().unwrap();
+                self.medium_skips.push(old_ratchet_large.clone());
+                let mut old_ratchet_medium = old_ratchet_large;
+
+                while !(old_ratchet_medium.medium == self.recent.medium
+                    && old_ratchet_medium.large == self.recent.large)
+                {
+                    (old_ratchet_medium, _) = old_ratchet_medium.next_medium_epoch();
+                    self.medium_skips.push(old_ratchet_medium.clone());
+                    if let Err(e) = self.check_budget(Budget::Medium) {
+                        return Some(Err(e));
+                    };
+                }
+
+                continue;
+            } else if self.small_skips.is_empty() {
+                let old_ratchet_medium = self.medium_skips.pop().unwrap();
+                let mut old_ratchet_small = old_ratchet_medium;
+
+                while !(old_ratchet_small.small == self.recent.small
+                    && old_ratchet_small.medium == self.recent.medium)
+                {
+                    self.small_skips.push(old_ratchet_small.clone());
+                    old_ratchet_small = old_ratchet_small.next_small_epoch();
+                    if let Err(e) = self.check_budget(Budget::Small) {
+                        return Some(Err(e));
+                    };
+                }
+
+                continue;
+            }
+
+            let old_ratchet_small = self.small_skips.pop().unwrap();
+            self.recent = old_ratchet_small.clone();
+            return Some(Ok(old_ratchet_small));
+        }
+
+        return None;
     }
 }
 
@@ -455,11 +512,11 @@ impl Display for Ratchet {
 pub(crate) fn inc_by(ratchet: &mut Ratchet, n: usize) -> (Ratchet, usize) {
     if n == 0 {
         return (ratchet.clone(), 0);
-    } else if n >= 256 * 256 - ratchet.combined_counter() {
+    } else if n >= LARGE_EPOCH_LENGTH - ratchet.combined_counter() {
         // `n` is larger than at least one large epoch jump
         let (mut jumped, jump_count) = ratchet.next_large_epoch();
         return inc_by(&mut jumped, n - jump_count);
-    } else if n >= 256 - ratchet.small_counter as usize {
+    } else if n >= MEDIUM_EPOCH_LENGTH - ratchet.small_counter as usize {
         // `n` is larger than at lest one medium epoch jump
         let (mut jumped, jump_count) = ratchet.next_medium_epoch();
         return inc_by(&mut jumped, n - jump_count);
