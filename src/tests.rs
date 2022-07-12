@@ -52,10 +52,7 @@ fn test_ratchet_add_256() {
     assert_ratchet_equal(slow, fast);
 }
 
-// #[test]
-// fn test_fuzz_ratchet {
-//     // TODO: research rust fuzz impl
-// }
+// TODO(appcypher): Let's find out about property-based testing and see if we can use it here.
 
 #[test]
 fn test_ratchet_add_65536() {

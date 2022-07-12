@@ -31,7 +31,6 @@ pub struct Ratchet {
     pub(crate) small_counter: u8,
 }
 
-// TODO: this won't work for histories that span the small ratchet.
 /// An iterator over `Ratchet`'s between two `Ratchet`'s.
 ///
 /// # Examples
