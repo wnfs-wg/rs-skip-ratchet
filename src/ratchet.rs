@@ -85,7 +85,7 @@ impl Ratchet {
     }
 
     /// Creates a new ratchet from a seed with zero counters.
-    pub(crate) fn zero(seed: [u8; 32]) -> Self {
+    pub fn zero(seed: [u8; 32]) -> Self {
         let seed = Hash::from_raw(seed);
 
         let medium = Hash::from(&!seed);
