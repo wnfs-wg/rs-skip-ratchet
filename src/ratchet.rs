@@ -22,6 +22,7 @@ use rand::Rng;
 /// ```
 ///
 /// [1]: https://github.com/fission-suite/skip-ratchet-paper/blob/main/spiral-ratchet.pdf
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, PartialEq, Debug, Eq)]
 pub struct Ratchet {
     pub(crate) large: Hash,
