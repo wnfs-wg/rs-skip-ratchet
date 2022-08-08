@@ -43,6 +43,10 @@ impl Hash {
     pub fn iter(&self) -> Iter<u8> {
         self.0.iter()
     }
+
+    pub fn bytes(self) -> [u8; 32] {
+        self.0
+    }
 }
 
 impl BitXor for Hash {

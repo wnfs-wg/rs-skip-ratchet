@@ -33,8 +33,8 @@ fn test_ratchet_zero() {
 
     assert_ratchet_equal(a, b);
 
-    let a_key = a.key();
-    let b_key = b.key();
+    let a_key = a.derive_key();
+    let b_key = b.derive_key();
     assert_eq!(a_key, b_key);
 }
 

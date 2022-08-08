@@ -18,7 +18,7 @@ use skip_ratchet::Ratchet;
 let mut ratchet = Ratchet::new();
 ratchet.inc_by(10);
 
-println!("{}", ratchet.key());
+println!("{}", ratchet.derive_key());
 ```
 
 #### Getting the previous versions of a ratchet.
@@ -33,7 +33,7 @@ let mut recent_ratchet = old.clone();
 recent_ratchet.inc_by(10);
 
 for revision in recent_ratchet.previous(&old_ratchet, 10) {
-   println!("{:?}", String::from(&revision));
+    println!("{:?}", String::from(&revision));
 }
 ```
 
@@ -42,7 +42,7 @@ for revision in recent_ratchet.previous(&old_ratchet, 10) {
 - Clone the repository.
 
   ```bash
-  git https://github.com/WebNativeFileSystem/rs-skip-ratchet.git
+  git clone https://github.com/WebNativeFileSystem/rs-skip-ratchet.git
   ```
 
 - Change directory
@@ -64,4 +64,4 @@ for revision in recent_ratchet.previous(&old_ratchet, 10) {
 
 [ts-impl]: https://github.com/fission-suite/webnative/blob/matheus23/wnfs2/src/fs/data/private/spiralratchet.ts
 [go-impl]: https://github.com/qri-io/wnfs-go/tree/master/private/ratchet
-[paper]: https://github.com/fission-suite/skip-ratchet-paper/blob/initial-draft/spiral-ratchet.pdf
+[paper]: https://github.com/fission-codes/skip-ratchet-paper/blob/main/spiral-ratchet.pdf

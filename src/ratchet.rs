@@ -18,7 +18,7 @@ use rand::Rng;
 /// use skip_ratchet::Ratchet;
 ///
 /// let ratchet = Ratchet::new();
-/// let key = ratchet.key();
+/// let key = ratchet.derive_key();
 /// ```
 ///
 /// [1]: https://github.com/fission-suite/skip-ratchet-paper/blob/main/spiral-ratchet.pdf
@@ -109,10 +109,10 @@ impl Ratchet {
     /// use skip_ratchet::Ratchet;
     ///
     /// let ratchet = Ratchet::new();
-    /// let key = ratchet.key();
+    /// let key = ratchet.derive_key();
     /// ```
-    pub fn key(&self) -> Hash {
-        Hash::from(&(self.large ^ self.medium ^ self.small))
+    pub fn derive_key(&self) -> [u8; 32] {
+        Hash::from(&(self.large ^ self.medium ^ self.small)).bytes()
     }
 
     /// Moves the ratchet forward by one step.
