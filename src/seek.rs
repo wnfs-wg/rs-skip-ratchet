@@ -35,8 +35,11 @@ impl Epoch {
     }
 }
 
+/// The ratchet seeker looks for a specific ratchet
+/// by efficiently jumping multiple steps ahead similar to an
+/// exponential search.
 pub struct RatchetSeeker {
-    /// Invariant: minimum is always smaller than the seeked value (and not equal to it)
+    /// Invariant: minimum is always smaller than and never equal to the seeked ratchet
     minimum: Ratchet,
     /// Invariant: current is the next jump_size-ed jump bigger than minimum
     current: Ratchet,
@@ -46,6 +49,11 @@ pub struct RatchetSeeker {
 }
 
 impl From<Ratchet> for RatchetSeeker {
+    /// Construct a ratchet seeker.
+    ///
+    /// The given ratchet *must* be smaller than the value seeked for.
+    ///
+    /// The ratchet seeker's `current()` value will never be the ratchet passed in.
     fn from(ratchet: Ratchet) -> Self {
         let next = ratchet.next_small_epoch();
         Self {
@@ -57,13 +65,19 @@ impl From<Ratchet> for RatchetSeeker {
 }
 
 impl RatchetSeeker {
+    /// The current ratchet value to evaluate.
     pub fn current(&self) -> &Ratchet {
         &self.current
     }
 
+    /// Do a seeking step by providing it whether `self.current()` is
+    /// less than or greater/equal to the step you're looking for.
+    ///
+    /// Returns a boolean indicating whether to continue.
     pub fn seek(&mut self, current_vs_goal: Ordering) -> bool {
         match current_vs_goal {
             Ordering::Less => {
+                // We didn't find the end yet, try bigger jumps.
                 self.jump_size = self.jump_size.inc();
                 let increased = self.jump_size.inc_ratchet(&self.current);
                 std::mem::swap(&mut self.current, &mut self.minimum);
@@ -71,12 +85,15 @@ impl RatchetSeeker {
                 true
             }
             Ordering::Equal => {
-                // uh, you found it. Do nothing
-                // TODO: Consider using another type that only has Less and Greater
+                // you found it, just stop searching
                 false
             }
             Ordering::Greater => {
                 if matches!(self.jump_size, Epoch::Small) {
+                    // the invariant is that `minimum` is smaller,
+                    // but `current` is bigger,
+                    // while they both are only a single step apart.
+                    // We can't continue searching: there's no in-between ratchets anymore.
                     return false;
                 }
                 self.jump_size = self.jump_size.dec();

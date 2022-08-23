@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::HashSet, vec};
+use std::vec;
 
 use hex::FromHex;
 use proptest::prelude::*;
@@ -272,29 +272,28 @@ fn assert_ratchet_equal(expected: &Ratchet, got: &Ratchet) {
 
 #[proptest(cases = 100)]
 fn prop_ratchet_seek_finds(
-    #[strategy(any::<[u8; 32]>())] seed: [u8; 32],
-    #[strategy(0..100_000usize)] jump: usize,
+    #[strategy(any::<[u8; 32]>().no_shrink())] seed: [u8; 32],
+    #[strategy(1..10_000_000usize)] jump: usize,
 ) {
     let initial = Ratchet::zero(seed);
-    let mut ratchet = initial.clone();
-    let mut keys: HashSet<[u8; 32]> = HashSet::new();
-
-    for _ in 0..jump {
-        keys.insert(ratchet.derive_key());
-        ratchet.inc();
-    }
+    let goal = {
+        let mut goal = initial.clone();
+        goal.inc_by(jump);
+        goal
+    };
 
     let mut seeker = RatchetSeeker::from(initial);
+    let mut iterations = 0;
     loop {
-        let current_key = seeker.current().derive_key();
-        let ord = if keys.contains(&current_key) {
-            Ordering::Less
-        } else {
-            Ordering::Greater
-        };
+        let ord = seeker.current().compare(&goal, jump).unwrap().cmp(&0);
         if !seeker.seek(ord) {
             break;
         }
+        iterations += 1;
+        // Seeking should never take much more than the ratchet is from it's goal.
+        if iterations > 2 * jump {
+            panic!("Infinite loop detected.")
+        }
     }
-    assert_ratchet_equal(&ratchet, seeker.current())
+    assert_ratchet_equal(&goal, seeker.current())
 }
