@@ -291,7 +291,7 @@ fn prop_ratchet_seek_finds(
         }
         iterations += 1;
         // Seeking should never take much more than the ratchet is from it's goal.
-        if iterations > 2 * jump {
+        if iterations > jump {
             panic!("Infinite loop detected.")
         }
     }
