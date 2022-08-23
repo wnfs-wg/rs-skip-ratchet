@@ -1,8 +1,10 @@
-use std::vec;
+use std::{cmp::Ordering, collections::HashSet, vec};
 
 use hex::FromHex;
+use proptest::prelude::*;
+use test_strategy::proptest;
 
-use crate::{hash::Hash, PreviousErr, Ratchet};
+use crate::{hash::Hash, PreviousErr, Ratchet, RatchetSeeker};
 
 fn hash_from_hex(s: &str) -> Hash {
     Hash::from_raw(<[u8; 32]>::from_hex(s).unwrap())
@@ -266,4 +268,33 @@ fn assert_ratchet_equal(expected: &Ratchet, got: &Ratchet) {
     assert_eq!(expected.small, got.small);
     assert_eq!(expected.medium_counter, got.medium_counter);
     assert_eq!(expected.small_counter, got.small_counter);
+}
+
+#[proptest(cases = 100)]
+fn prop_ratchet_seek_finds(
+    #[strategy(any::<[u8; 32]>())] seed: [u8; 32],
+    #[strategy(0..100_000usize)] jump: usize,
+) {
+    let initial = Ratchet::zero(seed);
+    let mut ratchet = initial.clone();
+    let mut keys: HashSet<[u8; 32]> = HashSet::new();
+
+    for _ in 0..jump {
+        keys.insert(ratchet.derive_key());
+        ratchet.inc();
+    }
+
+    let mut seeker = RatchetSeeker::from(initial);
+    loop {
+        let current_key = seeker.current().derive_key();
+        let ord = if keys.contains(&current_key) {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        };
+        if !seeker.seek(ord) {
+            break;
+        }
+    }
+    assert_ratchet_equal(&ratchet, seeker.current())
 }
