@@ -1,8 +1,8 @@
-use std::cmp::Ordering;
+use std::cmp::{self, Ordering};
 
 use crate::Ratchet;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Epoch {
     Small,
     Medium,
@@ -44,8 +44,11 @@ pub struct RatchetSeeker {
     /// Invariant: current is the next jump_size-ed jump bigger than minimum
     current: Ratchet,
     /// Will increase as long as seeked elements are smaller than the target,
-    /// and decrease when current is bigger than the target
+    /// with a maximum of max_jump_size
+    /// and decrease when current is bigger than the target.
     jump_size: Epoch,
+    /// Will start out at Large and decreases everytime current ends up overshooting.
+    max_jump_size: Epoch,
 }
 
 impl From<Ratchet> for RatchetSeeker {
@@ -60,6 +63,7 @@ impl From<Ratchet> for RatchetSeeker {
             minimum: ratchet,
             current: next,
             jump_size: Epoch::Small,
+            max_jump_size: Epoch::Large,
         }
     }
 }
@@ -78,7 +82,7 @@ impl RatchetSeeker {
         match current_vs_goal {
             Ordering::Less => {
                 // We didn't find the end yet, try bigger jumps.
-                self.jump_size = self.jump_size.inc();
+                self.jump_size = cmp::max(self.jump_size.inc(), self.max_jump_size);
                 let increased = self.jump_size.inc_ratchet(&self.current);
                 std::mem::swap(&mut self.current, &mut self.minimum);
                 self.current = increased;
@@ -97,6 +101,7 @@ impl RatchetSeeker {
                     return false;
                 }
                 self.jump_size = self.jump_size.dec();
+                self.max_jump_size = self.max_jump_size.dec();
                 let increased_less = self.jump_size.inc_ratchet(&self.minimum);
                 self.current = increased_less;
                 true
