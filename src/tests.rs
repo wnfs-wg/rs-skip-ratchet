@@ -312,3 +312,35 @@ fn prop_ratchet_exp_search_finds_zero(#[strategy(any::<[u8; 32]>().no_shrink())]
 
     assert_ratchet_equal(&ratchet, search.current());
 }
+
+#[proptest(cases = 100)]
+fn prop_ratchet_exp_search_finds_only_greater_and_less(
+    #[strategy(any::<[u8; 32]>().no_shrink())] seed: [u8; 32],
+    #[strategy(0..10_000_000usize)] jump: usize,
+) {
+    let initial = Ratchet::zero(seed);
+    let goal = {
+        let mut goal = initial.clone();
+        goal.inc_by(jump);
+        goal
+    };
+
+    let mut search = RatchetExpSearcher::from(initial);
+    let mut iterations = 0;
+    loop {
+        // should give the same result
+        let ord = match search.current().compare(&goal, jump).unwrap().cmp(&0) {
+            std::cmp::Ordering::Equal => std::cmp::Ordering::Less,
+            o => o,
+        };
+        if !search.step(ord) {
+            break;
+        }
+        iterations += 1;
+        // Seeking should never take much more than the ratchet is from it's goal.
+        if iterations > jump {
+            panic!("Infinite loop detected.")
+        }
+    }
+    assert_ratchet_equal(&goal, search.current())
+}
