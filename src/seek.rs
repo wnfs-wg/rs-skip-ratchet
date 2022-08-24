@@ -84,6 +84,8 @@ impl RatchetSeeker {
                 // We didn't find the end yet, try bigger jumps.
                 self.jump_size = cmp::max(self.jump_size.inc(), self.max_jump_size);
                 let increased = self.jump_size.inc_ratchet(&self.current);
+                // self.minimum = self.current;
+                // self.current = increased;
                 std::mem::swap(&mut self.current, &mut self.minimum);
                 self.current = increased;
                 true
@@ -102,8 +104,7 @@ impl RatchetSeeker {
                 }
                 self.jump_size = self.jump_size.dec();
                 self.max_jump_size = self.max_jump_size.dec();
-                let increased_less = self.jump_size.inc_ratchet(&self.minimum);
-                self.current = increased_less;
+                self.current = self.jump_size.inc_ratchet(&self.minimum);
                 true
             }
         }
