@@ -273,7 +273,7 @@ fn assert_ratchet_equal(expected: &Ratchet, got: &Ratchet) {
 #[proptest(cases = 100)]
 fn prop_ratchet_exp_search_finds(
     #[strategy(any::<[u8; 32]>().no_shrink())] seed: [u8; 32],
-    #[strategy(1..10_000_000usize)] jump: usize,
+    #[strategy(0..10_000_000usize)] jump: usize,
 ) {
     let initial = Ratchet::zero(seed);
     let goal = {
@@ -282,11 +282,11 @@ fn prop_ratchet_exp_search_finds(
         goal
     };
 
-    let mut seeker = RatchetExpSearcher::from(initial);
+    let mut search = RatchetExpSearcher::from(initial);
     let mut iterations = 0;
     loop {
-        let ord = seeker.current().compare(&goal, jump).unwrap().cmp(&0);
-        if !seeker.step(ord) {
+        let ord = search.current().compare(&goal, jump).unwrap().cmp(&0);
+        if !search.step(ord) {
             break;
         }
         iterations += 1;
@@ -295,5 +295,20 @@ fn prop_ratchet_exp_search_finds(
             panic!("Infinite loop detected.")
         }
     }
-    assert_ratchet_equal(&goal, seeker.current())
+    assert_ratchet_equal(&goal, search.current())
+}
+
+#[proptest(cases = 100)]
+fn prop_ratchet_exp_search_finds_zero(#[strategy(any::<[u8; 32]>().no_shrink())] seed: [u8; 32]) {
+    let ratchet = Ratchet::zero(seed);
+
+    let mut search = RatchetExpSearcher::from(ratchet.clone());
+
+    loop {
+        if !search.step(std::cmp::Ordering::Greater) {
+            break;
+        }
+    }
+
+    assert_ratchet_equal(&ratchet, search.current());
 }

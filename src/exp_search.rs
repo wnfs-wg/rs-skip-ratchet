@@ -4,6 +4,7 @@ use crate::Ratchet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Epoch {
+    Zero,
     Small,
     Medium,
     Large,
@@ -12,6 +13,7 @@ enum Epoch {
 impl Epoch {
     fn inc(&self) -> Self {
         match self {
+            Self::Zero => Self::Small,
             Self::Small => Self::Medium,
             Self::Medium => Self::Large,
             Self::Large => Self::Large,
@@ -20,7 +22,8 @@ impl Epoch {
 
     fn dec(&self) -> Self {
         match self {
-            Self::Small => Self::Small,
+            Self::Zero => Self::Zero,
+            Self::Small => Self::Zero,
             Self::Medium => Self::Small,
             Self::Large => Self::Medium,
         }
@@ -28,6 +31,7 @@ impl Epoch {
 
     fn inc_ratchet(&self, ratchet: &Ratchet) -> Ratchet {
         match self {
+            Self::Zero => ratchet.clone(),
             Self::Small => ratchet.next_small_epoch(),
             Self::Medium => ratchet.next_medium_epoch().0,
             Self::Large => ratchet.next_large_epoch().0,
@@ -38,7 +42,7 @@ impl Epoch {
 /// The ratchet exponential searcher looks for a specific ratchet
 /// by efficiently jumping multiple steps ahead.
 pub struct RatchetExpSearcher {
-    /// Invariant: minimum is always smaller than and never equal to the seeked ratchet
+    /// Invariant: minimum is always smaller than or equal to the seeked ratchet
     minimum: Ratchet,
     /// Invariant: current is the next jump_size-ed jump bigger than minimum
     current: Ratchet,
@@ -52,16 +56,11 @@ pub struct RatchetExpSearcher {
 
 impl From<Ratchet> for RatchetExpSearcher {
     /// Construct a ratchet seeker.
-    ///
-    /// The given ratchet *must* be smaller than the value seeked for.
-    ///
-    /// The ratchet seeker's `current()` value will never be the ratchet passed in.
     fn from(ratchet: Ratchet) -> Self {
-        let next = ratchet.next_small_epoch();
         Self {
-            minimum: ratchet,
-            current: next,
-            jump_size: Epoch::Small,
+            minimum: ratchet.clone(),
+            current: ratchet,
+            jump_size: Epoch::Zero,
             max_jump_size: Epoch::Large,
         }
     }
@@ -94,11 +93,8 @@ impl RatchetExpSearcher {
                 false
             }
             Ordering::Greater => {
-                if matches!(self.jump_size, Epoch::Small) {
-                    // the invariant is that `minimum` is smaller,
-                    // but `current` is bigger,
-                    // while they both are only a single step apart.
-                    // We can't continue searching: there's no in-between ratchets anymore.
+                if matches!(self.jump_size, Epoch::Zero) {
+                    // We can't jump "less" than zero from `minimum`, so we're there.
                     return false;
                 }
                 self.jump_size = self.jump_size.dec();
