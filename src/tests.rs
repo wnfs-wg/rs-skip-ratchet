@@ -4,7 +4,7 @@ use hex::FromHex;
 use proptest::prelude::*;
 use test_strategy::proptest;
 
-use crate::{hash::Hash, PreviousErr, Ratchet, RatchetSeeker};
+use crate::{hash::Hash, PreviousErr, Ratchet, RatchetExpSearcher};
 
 fn hash_from_hex(s: &str) -> Hash {
     Hash::from_raw(<[u8; 32]>::from_hex(s).unwrap())
@@ -271,7 +271,7 @@ fn assert_ratchet_equal(expected: &Ratchet, got: &Ratchet) {
 }
 
 #[proptest(cases = 100)]
-fn prop_ratchet_seek_finds(
+fn prop_ratchet_exp_search_finds(
     #[strategy(any::<[u8; 32]>().no_shrink())] seed: [u8; 32],
     #[strategy(1..10_000_000usize)] jump: usize,
 ) {
@@ -282,11 +282,11 @@ fn prop_ratchet_seek_finds(
         goal
     };
 
-    let mut seeker = RatchetSeeker::from(initial);
+    let mut seeker = RatchetExpSearcher::from(initial);
     let mut iterations = 0;
     loop {
         let ord = seeker.current().compare(&goal, jump).unwrap().cmp(&0);
-        if !seeker.seek(ord) {
+        if !seeker.step(ord) {
             break;
         }
         iterations += 1;

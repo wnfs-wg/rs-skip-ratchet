@@ -35,10 +35,9 @@ impl Epoch {
     }
 }
 
-/// The ratchet seeker looks for a specific ratchet
-/// by efficiently jumping multiple steps ahead similar to an
-/// exponential search.
-pub struct RatchetSeeker {
+/// The ratchet exponential searcher looks for a specific ratchet
+/// by efficiently jumping multiple steps ahead.
+pub struct RatchetExpSearcher {
     /// Invariant: minimum is always smaller than and never equal to the seeked ratchet
     minimum: Ratchet,
     /// Invariant: current is the next jump_size-ed jump bigger than minimum
@@ -51,7 +50,7 @@ pub struct RatchetSeeker {
     max_jump_size: Epoch,
 }
 
-impl From<Ratchet> for RatchetSeeker {
+impl From<Ratchet> for RatchetExpSearcher {
     /// Construct a ratchet seeker.
     ///
     /// The given ratchet *must* be smaller than the value seeked for.
@@ -68,17 +67,17 @@ impl From<Ratchet> for RatchetSeeker {
     }
 }
 
-impl RatchetSeeker {
+impl RatchetExpSearcher {
     /// The current ratchet value to evaluate.
     pub fn current(&self) -> &Ratchet {
         &self.current
     }
 
-    /// Do a seeking step by providing it whether `self.current()` is
+    /// Do a search step by providing it whether `self.current()` is
     /// less than or greater/equal to the step you're looking for.
     ///
     /// Returns a boolean indicating whether to continue.
-    pub fn seek(&mut self, current_vs_goal: Ordering) -> bool {
+    pub fn step(&mut self, current_vs_goal: Ordering) -> bool {
         match current_vs_goal {
             Ordering::Less => {
                 // We didn't find the end yet, try bigger jumps.
