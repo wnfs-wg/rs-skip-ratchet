@@ -17,7 +17,7 @@ pub enum RatchetErr {
 }
 
 /// This type is used to indicate errors that occur when getting a previous version of a `Ratchet`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum PreviousErr {
     BudgetExceeded,
     EqualRatchets,
@@ -26,7 +26,7 @@ pub enum PreviousErr {
 
 impl Display for RatchetErr {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match &*self {
+        match self {
             RatchetErr::BadLen(i) => write!(f, "invalid ratchet length {}", i),
             RatchetErr::BadEncoding(s) => write!(
                 f,
