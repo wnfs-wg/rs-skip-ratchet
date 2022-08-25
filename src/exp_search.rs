@@ -97,6 +97,12 @@ impl RatchetExpSearcher {
                     // We can't jump "less" than zero from `minimum`, so we're there.
                     return false;
                 }
+                if matches!(self.jump_size, Epoch::Small) {
+                    // If jump_size was small, then `current` is `minimum + 1`.
+                    // The smallest we can do is `minimum`, so stop after that.
+                    self.current = self.minimum.clone();
+                    return false;
+                }
                 self.jump_size = self.jump_size.dec();
                 self.max_jump_size = self.max_jump_size.dec();
                 self.current = self.jump_size.inc_ratchet(&self.minimum);
