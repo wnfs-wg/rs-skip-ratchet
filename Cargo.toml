@@ -1,6 +1,6 @@
 [package]
 name = "skip_ratchet"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Skip ratchet"
 keywords = ["wnfs", "webnative", "skip-ratchet", "decentralisation"]
