@@ -172,7 +172,7 @@ mod hash_tests {
             let h = Hash::from(&h);
             let h = Hash::from(&h);
             let h = Hash::from(&h);
-            
+
             Hash::from(&h)
         };
 
