@@ -270,7 +270,7 @@ fn assert_ratchet_equal(expected: &Ratchet, got: &Ratchet) {
     assert_eq!(expected.small_counter, got.small_counter);
 }
 
-#[proptest(cases = 100)]
+#[proptest]
 fn prop_ratchet_exp_search_finds(
     #[strategy(any::<[u8; 32]>().no_shrink())] seed: [u8; 32],
     #[strategy(0..10_000_000usize)] jump: usize,
@@ -298,7 +298,7 @@ fn prop_ratchet_exp_search_finds(
     assert_ratchet_equal(&goal, search.current())
 }
 
-#[proptest(cases = 100)]
+#[proptest]
 fn prop_ratchet_exp_search_finds_zero(#[strategy(any::<[u8; 32]>().no_shrink())] seed: [u8; 32]) {
     let ratchet = Ratchet::zero(seed);
 
@@ -313,7 +313,7 @@ fn prop_ratchet_exp_search_finds_zero(#[strategy(any::<[u8; 32]>().no_shrink())]
     assert_ratchet_equal(&ratchet, search.current());
 }
 
-#[proptest(cases = 100)]
+#[proptest]
 fn prop_ratchet_exp_search_finds_only_greater_and_less(
     #[strategy(any::<[u8; 32]>().no_shrink())] seed: [u8; 32],
     #[strategy(0..10_000_000usize)] jump: usize,
