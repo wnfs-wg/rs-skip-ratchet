@@ -4,7 +4,7 @@ use hex::FromHex;
 use proptest::prelude::*;
 use test_strategy::proptest;
 
-use crate::{hash::Hash, PreviousErr, Ratchet, RatchetExpSearcher};
+use crate::{exp_search::JumpSize, hash::Hash, PreviousErr, Ratchet, RatchetExpSearcher};
 
 fn hash_from_hex(s: &str) -> Hash {
     Hash::from_raw(<[u8; 32]>::from_hex(s).unwrap())
@@ -270,10 +270,21 @@ fn assert_ratchet_equal(expected: &Ratchet, got: &Ratchet) {
     assert_eq!(expected.small_counter, got.small_counter);
 }
 
+fn any_jump_size() -> impl Strategy<Value = JumpSize> {
+    (0..3).prop_map(|n| match n {
+        0 => JumpSize::Zero,
+        1 => JumpSize::Small,
+        2 => JumpSize::Medium,
+        3 => JumpSize::Large,
+        _ => unreachable!(),
+    })
+}
+
 #[proptest]
 fn prop_ratchet_exp_search_finds(
     #[strategy(any::<[u8; 32]>().no_shrink())] seed: [u8; 32],
     #[strategy(0..10_000_000usize)] jump: usize,
+    #[strategy(any_jump_size())] initial_jump_size: JumpSize,
 ) {
     let initial = Ratchet::zero(seed);
     let goal = {
@@ -282,7 +293,7 @@ fn prop_ratchet_exp_search_finds(
         goal
     };
 
-    let mut search = RatchetExpSearcher::from(initial);
+    let mut search = RatchetExpSearcher::new(initial, initial_jump_size);
     let mut iterations = 0;
     loop {
         let ord = search.current().compare(&goal, jump).unwrap().cmp(&0);
@@ -299,10 +310,13 @@ fn prop_ratchet_exp_search_finds(
 }
 
 #[proptest]
-fn prop_ratchet_exp_search_finds_zero(#[strategy(any::<[u8; 32]>().no_shrink())] seed: [u8; 32]) {
+fn prop_ratchet_exp_search_finds_zero(
+    #[strategy(any::<[u8; 32]>().no_shrink())] seed: [u8; 32],
+    #[strategy(any_jump_size())] initial_jump_size: JumpSize,
+) {
     let ratchet = Ratchet::zero(seed);
 
-    let mut search = RatchetExpSearcher::from(ratchet.clone());
+    let mut search = RatchetExpSearcher::new(ratchet.clone(), initial_jump_size);
 
     loop {
         if !search.step(std::cmp::Ordering::Greater) {
@@ -317,6 +331,7 @@ fn prop_ratchet_exp_search_finds_zero(#[strategy(any::<[u8; 32]>().no_shrink())]
 fn prop_ratchet_exp_search_finds_only_greater_and_less(
     #[strategy(any::<[u8; 32]>().no_shrink())] seed: [u8; 32],
     #[strategy(0..10_000_000usize)] jump: usize,
+    #[strategy(any_jump_size())] initial_jump_size: JumpSize,
 ) {
     let initial = Ratchet::zero(seed);
     let goal = {
@@ -325,7 +340,7 @@ fn prop_ratchet_exp_search_finds_only_greater_and_less(
         goal
     };
 
-    let mut search = RatchetExpSearcher::from(initial);
+    let mut search = RatchetExpSearcher::new(initial, initial_jump_size);
     let mut iterations = 0;
     loop {
         // should give the same result

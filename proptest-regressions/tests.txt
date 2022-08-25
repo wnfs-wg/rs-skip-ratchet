@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 6f6001ada6b4d98bfb2462ee2e32576a6c4f5c08c0a93c5d95887f861273cf88 # shrinks to input = _PropRatchetExpSearchFindsOnlyGreaterAndLessArgs { seed: [221, 54, 116, 160, 176, 65, 176, 63, 13, 40, 189, 202, 110, 210, 126, 173, 246, 170, 251, 22, 142, 122, 192, 194, 159, 185, 219, 112, 232, 66, 87, 145], jump: 1 }
+cc cecd4dd38b08775691d01626390a752e1552ee077407ff1cfd78976fb8ff3651 # shrinks to input = _PropRatchetExpSearchFindsZeroArgs { seed: [93, 158, 191, 63, 126, 150, 51, 240, 53, 197, 162, 47, 118, 235, 250, 51, 162, 97, 78, 208, 165, 201, 187, 129, 55, 248, 50, 145, 127, 232, 143, 179], initial_jump_size: Small }

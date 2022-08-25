@@ -3,14 +3,19 @@ use std::cmp::{self, Ordering};
 use crate::Ratchet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum Epoch {
+/// The different possible ratchet jumps
+pub enum JumpSize {
+    /// A jump size that doesn't change the ratchet at all
     Zero,
+    /// Stepping the ratchet forward exactly once
     Small,
+    /// Jumping to the next medium epoch
     Medium,
+    /// Jumping to the next large epoch
     Large,
 }
 
-impl Epoch {
+impl JumpSize {
     fn inc(&self) -> Self {
         match self {
             Self::Zero => Self::Small,
@@ -49,24 +54,33 @@ pub struct RatchetExpSearcher {
     /// Will increase as long as seeked elements are smaller than the target,
     /// with a maximum of max_jump_size
     /// and decrease when current is bigger than the target.
-    jump_size: Epoch,
+    jump_size: JumpSize,
     /// Will start out at Large and decreases everytime current ends up overshooting.
-    max_jump_size: Epoch,
-}
-
-impl From<Ratchet> for RatchetExpSearcher {
-    /// Construct a ratchet seeker.
-    fn from(ratchet: Ratchet) -> Self {
-        Self {
-            minimum: ratchet.clone(),
-            current: ratchet,
-            jump_size: Epoch::Zero,
-            max_jump_size: Epoch::Large,
-        }
-    }
+    max_jump_size: JumpSize,
 }
 
 impl RatchetExpSearcher {
+    /// Start a new ratchet search.
+    ///
+    /// The assumption is that given ratchet is less or equal to the target
+    /// you're looking for.
+    ///
+    /// Then it proceeds doing an exponential search forwards looking for a
+    /// ratchet that is bigger than the target.
+    /// Then it does something similar to a binary search trying to find
+    /// the target between the ratchet that was bigger than the target
+    /// and the last known ratchet to be smaller than the target.
+    ///
+    /// This search is kicked off with an initial jump of `initial_jump_size`.
+    pub fn new(ratchet: Ratchet, initial_jump_size: JumpSize) -> Self {
+        Self {
+            current: initial_jump_size.inc_ratchet(&ratchet),
+            minimum: ratchet,
+            jump_size: initial_jump_size,
+            max_jump_size: JumpSize::Large,
+        }
+    }
+
     /// The current ratchet value to evaluate.
     pub fn current(&self) -> &Ratchet {
         &self.current
@@ -93,11 +107,11 @@ impl RatchetExpSearcher {
                 false
             }
             Ordering::Greater => {
-                if matches!(self.jump_size, Epoch::Zero) {
+                if matches!(self.jump_size, JumpSize::Zero) {
                     // We can't jump "less" than zero from `minimum`, so we're there.
                     return false;
                 }
-                if matches!(self.jump_size, Epoch::Small) {
+                if matches!(self.jump_size, JumpSize::Small) {
                     // If jump_size was small, then `current` is `minimum + 1`.
                     // The smallest we can do is `minimum`, so stop after that.
                     self.current = self.minimum.clone();
