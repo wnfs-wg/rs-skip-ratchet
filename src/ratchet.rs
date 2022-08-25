@@ -275,7 +275,7 @@ impl Ratchet {
     /// ```
     pub fn next_large_epoch(&self) -> (Ratchet, usize) {
         (
-            Ratchet::zero(self.large.as_slice().clone()),
+            Ratchet::zero(*self.large.as_slice()),
             LARGE_EPOCH_LENGTH - self.combined_counter(),
         )
     }
@@ -465,7 +465,7 @@ impl Iterator for PreviousIterator {
             return Some(old_ratchet_small);
         }
 
-        return None;
+        None
     }
 }
 

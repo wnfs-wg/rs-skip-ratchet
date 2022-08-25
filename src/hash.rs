@@ -54,7 +54,7 @@ impl BitXor for Hash {
 
     fn bitxor(mut self, other: Self) -> Self {
         for (a, b) in self.0.iter_mut().zip(other.0.iter()) {
-            *a = *a ^ *b;
+            *a ^= *b;
         }
         Self(self.0)
     }
@@ -172,8 +172,8 @@ mod hash_tests {
             let h = Hash::from(&h);
             let h = Hash::from(&h);
             let h = Hash::from(&h);
-            let h = Hash::from(&h);
-            h
+            
+            Hash::from(&h)
         };
 
         let hash_2 = Hash::from_chain(b"James Cameron", 5);
