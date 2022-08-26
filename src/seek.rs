@@ -44,9 +44,11 @@ impl JumpSize {
     }
 }
 
-/// The ratchet exponential searcher looks for a specific ratchet
-/// by efficiently jumping multiple steps ahead.
-pub struct RatchetExpSearcher {
+/// The ratchet seeker looks for a target ratchet
+/// by efficiently exploring the ratchet space and
+/// figuring out whether it's smaller or greater than
+/// the target until it finds the target.
+pub struct RatchetSeeker {
     /// Invariant: minimum is always smaller than or equal to the seeked ratchet
     minimum: Ratchet,
     /// Invariant: current is the next jump_size-ed jump bigger than minimum
@@ -59,7 +61,7 @@ pub struct RatchetExpSearcher {
     max_jump_size: JumpSize,
 }
 
-impl RatchetExpSearcher {
+impl RatchetSeeker {
     /// Start a new ratchet search.
     ///
     /// The assumption is that given ratchet is less or equal to the target
