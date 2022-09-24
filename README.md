@@ -64,4 +64,4 @@ for revision in recent_ratchet.previous(&old_ratchet, 10) {
 
 [ts-impl]: https://github.com/fission-suite/webnative/blob/matheus23/wnfs2/src/fs/data/private/spiralratchet.ts
 [go-impl]: https://github.com/qri-io/wnfs-go/tree/master/private/ratchet
-[paper]: https://github.com/fission-codes/skip-ratchet-paper/blob/main/spiral-ratchet.pdf
+[paper]: https://github.com/fission-codes/skip-ratchet-paper/blob/main/skip-ratchet.pdf
