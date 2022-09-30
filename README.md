@@ -18,7 +18,7 @@ use skip_ratchet::Ratchet;
 let mut ratchet = Ratchet::new();
 ratchet.inc_by(10);
 
-println!("{}", ratchet.derive_key());
+println!("{:?}", ratchet.derive_key());
 ```
 
 #### Getting the previous versions of a ratchet.
@@ -29,10 +29,10 @@ use skip_ratchet::Ratchet;
 let mut old_ratchet = Ratchet::new();
 old_ratchet.inc_by(5);
 
-let mut recent_ratchet = old.clone();
+let mut recent_ratchet = old_ratchet.clone();
 recent_ratchet.inc_by(10);
 
-for revision in recent_ratchet.previous(&old_ratchet, 10) {
+for revision in recent_ratchet.previous(&old_ratchet, 10).unwrap() {
     println!("{:?}", String::from(&revision));
 }
 ```
