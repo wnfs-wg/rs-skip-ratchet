@@ -392,6 +392,26 @@ impl From<&Ratchet> for String {
 }
 
 impl PreviousIterator {
+    /// If possible, this constructs an iterator for enumerating all ratchets
+    /// from most recent to oldest between `old` and `recent`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skip_ratchet::{Ratchet, ratchet::PreviousIterator};
+    ///
+    /// let old_ratchet = Ratchet::new();
+    ///
+    /// let mut new_ratchet = old_ratchet.clone();
+    /// new_ratchet.inc_by(100_000);
+    ///
+    /// let mut new_ratchet_previous = old_ratchet.clone();
+    /// new_ratchet_previous.inc_by(99_999);
+    ///
+    /// let mut iterator = PreviousIterator::new(&old_ratchet, &new_ratchet, 1_000_000_000).unwrap();
+    ///
+    /// assert_eq!(iterator.next(), Some(new_ratchet_previous));
+    /// ```
     pub fn new(
         old: &Ratchet,
         recent: &Ratchet,
@@ -422,6 +442,33 @@ impl PreviousIterator {
         }
 
         Ok(iter)
+    }
+
+    /// Returns the exact amount of ratchets between the old and recent ratchet.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skip_ratchet::{Ratchet, ratchet::PreviousIterator};
+    ///
+    /// let old_ratchet = Ratchet::new();
+    /// let mut new_ratchet = old_ratchet.clone();
+    /// new_ratchet.inc_by(100_000);
+    ///
+    /// let iterator = PreviousIterator::new(&old_ratchet, &new_ratchet, 1_000_000_000).unwrap();
+    ///
+    /// assert_eq!(iterator.step_count(), 100_000);
+    /// ```
+    pub fn step_count(&self) -> usize {
+        match self.large_skips.first() {
+            None => 0,
+            Some(first_large) => {
+                let mut count = 0;
+                count += (self.large_skips.len() - 1) * LARGE_EPOCH_LENGTH;
+                count += self.recent.combined_counter() - first_large.combined_counter();
+                count
+            }
+        }
     }
 }
 
@@ -466,6 +513,11 @@ impl Iterator for PreviousIterator {
         }
 
         None
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let count = self.step_count();
+        (count, Some(count))
     }
 }
 

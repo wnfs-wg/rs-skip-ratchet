@@ -4,7 +4,10 @@ use hex::FromHex;
 use proptest::prelude::*;
 use test_strategy::proptest;
 
-use crate::{hash::Hash, seek::JumpSize, PreviousErr, Ratchet, RatchetSeeker};
+use crate::{
+    constants::LARGE_EPOCH_LENGTH, hash::Hash, ratchet::PreviousIterator, seek::JumpSize,
+    PreviousErr, Ratchet, RatchetSeeker,
+};
 
 fn hash_from_hex(s: &str) -> Hash {
     Hash::from_raw(<[u8; 32]>::from_hex(s).unwrap())
@@ -371,4 +374,60 @@ fn prop_ratchet_seek_finds_only_greater_and_less(
         }
     }
     assert_ratchet_equal(&goal, seeker.current())
+}
+
+#[proptest]
+fn prop_ratchet_step_count_is_inc_by(
+    #[strategy(any::<[u8; 32]>().no_shrink())] seed: [u8; 32],
+    #[strategy(0..10_000_000usize)] jump: usize,
+) {
+    let initial = Ratchet::zero(seed);
+    let goal = {
+        let mut goal = initial.clone();
+        goal.inc_by(jump);
+        goal
+    };
+
+    let iterator = PreviousIterator::new(&initial, &goal, 1_000_000_000).unwrap();
+
+    assert_eq!(iterator.step_count(), jump);
+}
+
+#[proptest]
+fn prop_ratchet_previous_of_equal_is_none(
+    #[strategy(any::<[u8; 32]>().no_shrink())] seed: [u8; 32],
+    #[strategy(1..LARGE_EPOCH_LENGTH)] jump: usize,
+) {
+    let mut initial = Ratchet::zero(seed);
+    initial.inc_by(jump);
+
+    let mut iterator = PreviousIterator::new(&initial.clone(), &initial, 1_000).unwrap();
+
+    assert_eq!(iterator.next(), None);
+}
+
+#[proptest]
+fn prop_ratchet_previous_is_inc_reverse(
+    #[strategy(any::<[u8; 32]>().no_shrink())] seed: [u8; 32],
+    #[strategy(1..10_000usize)] jump: usize,
+) {
+    let initial = Ratchet::zero(seed);
+    let goal = {
+        let mut goal = initial.clone();
+        goal.inc_by(jump);
+        goal
+    };
+
+    let previous_iterator = PreviousIterator::new(&initial, &goal, 1_000_000_000).unwrap();
+
+    let forward_iterator = initial.clone().take(jump - 1);
+
+    let mut forward_collected_reversed = forward_iterator.collect::<Vec<Ratchet>>();
+    forward_collected_reversed.reverse();
+    forward_collected_reversed.push(initial.clone());
+
+    assert_eq!(
+        previous_iterator.collect::<Vec<Ratchet>>(),
+        forward_collected_reversed
+    );
 }
