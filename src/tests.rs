@@ -262,6 +262,19 @@ fn test_ratchet_previous_budget() {
     }
 }
 
+#[test]
+fn test_ratchet_iterator() {
+    let mut ratchet = Ratchet::zero(hash_from_hex(SEED).into());
+    let mut via_iterator = ratchet.clone();
+
+    ratchet.inc();
+    assert_ratchet_equal(&ratchet, &via_iterator.next().unwrap());
+    ratchet.inc();
+    assert_ratchet_equal(&ratchet, &via_iterator.next().unwrap());
+    ratchet.inc();
+    assert_ratchet_equal(&ratchet, &via_iterator.next().unwrap());
+}
+
 fn assert_ratchet_equal(expected: &Ratchet, got: &Ratchet) {
     assert_eq!(expected.large, got.large);
     assert_eq!(expected.medium, got.medium);

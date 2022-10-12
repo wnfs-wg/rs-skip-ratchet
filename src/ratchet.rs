@@ -473,7 +473,8 @@ impl Iterator for Ratchet {
     type Item = Ratchet;
 
     fn next(&mut self) -> Option<Self::Item> {
-        Some(self.next_small_epoch())
+        self.inc();
+        Some(self.clone())
     }
 }
 
