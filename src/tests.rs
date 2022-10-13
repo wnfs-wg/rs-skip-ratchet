@@ -278,6 +278,27 @@ fn test_ratchet_iterator() {
     assert_ratchet_equal(&ratchet, &via_iterator.next().unwrap());
 }
 
+#[test]
+fn test_step_count() {
+    let old_ratchet = Ratchet::new();
+    let mut new_ratchet = old_ratchet.clone();
+    new_ratchet.inc_by(LARGE_EPOCH_LENGTH + 10);
+
+    let mut iterator = PreviousIterator::new(&old_ratchet, &new_ratchet, 1_000_000_000).unwrap();
+
+    for _ in 0..LARGE_EPOCH_LENGTH {
+        assert!(iterator.next().is_some());
+    }
+
+    assert_ne!(iterator.step_count(), 0); // Fails, even though there are 10 steps left.
+
+    for _ in 0..10 {
+        assert!(iterator.next().is_some());
+    }
+
+    assert!(iterator.next().is_none());
+}
+
 fn assert_ratchet_equal(expected: &Ratchet, got: &Ratchet) {
     assert_eq!(expected.large, got.large);
     assert_eq!(expected.medium, got.medium);
@@ -391,6 +412,29 @@ fn prop_ratchet_step_count_is_inc_by(
     let iterator = PreviousIterator::new(&initial, &goal, 1_000_000_000).unwrap();
 
     assert_eq!(iterator.step_count(), jump);
+}
+
+#[proptest]
+fn prop_ratchet_step_count_is_inc_by_minus_steps(
+    #[strategy(any::<[u8; 32]>().no_shrink())] seed: [u8; 32],
+    #[strategy(0..10_000usize)] previous_steps: usize,
+    #[strategy(0..100_000usize)] additional_jumps: usize,
+) {
+    let jumps = previous_steps + additional_jumps;
+    let initial = Ratchet::zero(seed);
+    let goal = {
+        let mut goal = initial.clone();
+        goal.inc_by(jumps);
+        goal
+    };
+
+    let mut iterator = PreviousIterator::new(&initial, &goal, 1_000_000_000).unwrap();
+
+    for _ in 0..previous_steps {
+        assert!(iterator.next().is_some());
+    }
+
+    assert_eq!(iterator.step_count(), jumps - previous_steps);
 }
 
 #[proptest]
