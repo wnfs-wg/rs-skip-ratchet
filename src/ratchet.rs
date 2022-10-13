@@ -470,7 +470,7 @@ impl PreviousIterator {
             _ => (
                 self.medium_skips
                     .first()
-                    .or(self.small_skips.first())
+                    .or_else(|| self.small_skips.first())
                     .unwrap_or(&self.recent),
                 false,
             ),
@@ -480,16 +480,13 @@ impl PreviousIterator {
         count += self.recent.combined_counter() - oldest_in_recent_epoch.combined_counter();
 
         // Other than that we need to add all large skips
-        match self.large_skips.first() {
-            Some(first_large) => {
-                count += (self.large_skips.len() - 1) * LARGE_EPOCH_LENGTH;
-                // If we didn't take the large from the large epoch, we need to add it back in here
-                if !from_large {
-                    count += LARGE_EPOCH_LENGTH;
-                }
-                count += oldest_in_recent_epoch.combined_counter() - first_large.combined_counter();
+        if let Some(first_large) = self.large_skips.first() {
+            count += (self.large_skips.len() - 1) * LARGE_EPOCH_LENGTH;
+            // If we didn't take the large from the large epoch, we need to add it back in here
+            if !from_large {
+                count += LARGE_EPOCH_LENGTH;
             }
-            None => {}
+            count += oldest_in_recent_epoch.combined_counter() - first_large.combined_counter();
         }
 
         count
