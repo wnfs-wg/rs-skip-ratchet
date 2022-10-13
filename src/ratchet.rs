@@ -51,10 +51,10 @@ pub struct Ratchet {
 /// ```
 #[derive(Clone, Debug)]
 pub struct PreviousIterator {
-    large_skips: Vec<Ratchet>,
-    medium_skips: Vec<Ratchet>,
-    small_skips: Vec<Ratchet>,
-    recent: Ratchet,
+    pub(crate) large_skips: Vec<Ratchet>,
+    pub(crate) medium_skips: Vec<Ratchet>,
+    pub(crate) small_skips: Vec<Ratchet>,
+    pub(crate) recent: Ratchet,
 }
 
 impl Ratchet {
@@ -392,6 +392,26 @@ impl From<&Ratchet> for String {
 }
 
 impl PreviousIterator {
+    /// If possible, this constructs an iterator for enumerating all ratchets
+    /// from most recent to oldest between `old` and `recent`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skip_ratchet::{Ratchet, ratchet::PreviousIterator};
+    ///
+    /// let old_ratchet = Ratchet::new();
+    ///
+    /// let mut new_ratchet = old_ratchet.clone();
+    /// new_ratchet.inc_by(100_000);
+    ///
+    /// let mut new_ratchet_previous = old_ratchet.clone();
+    /// new_ratchet_previous.inc_by(99_999);
+    ///
+    /// let mut iterator = PreviousIterator::new(&old_ratchet, &new_ratchet, 1_000_000_000).unwrap();
+    ///
+    /// assert_eq!(iterator.next(), Some(new_ratchet_previous));
+    /// ```
     pub fn new(
         old: &Ratchet,
         recent: &Ratchet,
@@ -422,6 +442,54 @@ impl PreviousIterator {
         }
 
         Ok(iter)
+    }
+
+    /// Returns the exact amount of ratchets between the old and recent ratchet.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skip_ratchet::{Ratchet, ratchet::PreviousIterator};
+    ///
+    /// let old_ratchet = Ratchet::new();
+    /// let mut new_ratchet = old_ratchet.clone();
+    /// new_ratchet.inc_by(100_000);
+    ///
+    /// let iterator = PreviousIterator::new(&old_ratchet, &new_ratchet, 1_000_000_000).unwrap();
+    ///
+    /// assert_eq!(iterator.step_count(), 100_000);
+    /// ```
+    pub fn step_count(&self) -> usize {
+        let mut count = 0;
+
+        // The oldest ratchet in this iterator with the same large epoch as recent:
+        let (oldest_in_recent_epoch, from_large) = match self.large_skips.last() {
+            // the last large skip may or may not have the same large epoch
+            Some(last_large) if last_large.large == self.recent.large => (last_large, true),
+            // if not, we take the first in any of the other skip lists
+            _ => (
+                self.medium_skips
+                    .first()
+                    .or_else(|| self.small_skips.first())
+                    .unwrap_or(&self.recent),
+                false,
+            ),
+        };
+
+        // It's safe to compare combined counters, since they both are in the same large epoch
+        count += self.recent.combined_counter() - oldest_in_recent_epoch.combined_counter();
+
+        // Other than that we need to add all large skips
+        if let Some(first_large) = self.large_skips.first() {
+            count += (self.large_skips.len() - 1) * LARGE_EPOCH_LENGTH;
+            // If we didn't take the large from the large epoch, we need to add it back in here
+            if !from_large {
+                count += LARGE_EPOCH_LENGTH;
+            }
+            count += oldest_in_recent_epoch.combined_counter() - first_large.combined_counter();
+        }
+
+        count
     }
 }
 
@@ -466,6 +534,11 @@ impl Iterator for PreviousIterator {
         }
 
         None
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let count = self.step_count();
+        (count, Some(count))
     }
 }
 

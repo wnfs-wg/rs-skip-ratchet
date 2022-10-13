@@ -4,7 +4,10 @@ use hex::FromHex;
 use proptest::prelude::*;
 use test_strategy::proptest;
 
-use crate::{hash::Hash, seek::JumpSize, PreviousErr, Ratchet, RatchetSeeker};
+use crate::{
+    constants::LARGE_EPOCH_LENGTH, hash::Hash, ratchet::PreviousIterator, seek::JumpSize,
+    PreviousErr, Ratchet, RatchetSeeker,
+};
 
 fn hash_from_hex(s: &str) -> Hash {
     Hash::from_raw(<[u8; 32]>::from_hex(s).unwrap())
@@ -275,6 +278,27 @@ fn test_ratchet_iterator() {
     assert_ratchet_equal(&ratchet, &via_iterator.next().unwrap());
 }
 
+#[test]
+fn test_step_count_regression() {
+    let old_ratchet = Ratchet::new();
+    let mut new_ratchet = old_ratchet.clone();
+    new_ratchet.inc_by(LARGE_EPOCH_LENGTH + 10);
+
+    let mut iterator = PreviousIterator::new(&old_ratchet, &new_ratchet, 1_000_000_000).unwrap();
+
+    for _ in 0..LARGE_EPOCH_LENGTH {
+        assert!(iterator.next().is_some());
+    }
+
+    assert_ne!(iterator.step_count(), 0);
+
+    for _ in 0..10 {
+        assert!(iterator.next().is_some());
+    }
+
+    assert!(iterator.next().is_none());
+}
+
 fn assert_ratchet_equal(expected: &Ratchet, got: &Ratchet) {
     assert_eq!(expected.large, got.large);
     assert_eq!(expected.medium, got.medium);
@@ -371,4 +395,85 @@ fn prop_ratchet_seek_finds_only_greater_and_less(
         }
     }
     assert_ratchet_equal(&goal, seeker.current())
+}
+
+#[proptest]
+fn prop_ratchet_step_count_is_inc_by(
+    #[strategy(any::<[u8; 32]>().no_shrink())] seed: [u8; 32],
+    #[strategy(0..10_000_000usize)] jump: usize,
+) {
+    let initial = Ratchet::zero(seed);
+    let goal = {
+        let mut goal = initial.clone();
+        goal.inc_by(jump);
+        goal
+    };
+
+    let iterator = PreviousIterator::new(&initial, &goal, 1_000_000_000).unwrap();
+
+    assert_eq!(iterator.step_count(), jump);
+}
+
+#[proptest]
+fn prop_ratchet_step_count_is_inc_by_minus_steps(
+    #[strategy(any::<[u8; 32]>().no_shrink())] seed: [u8; 32],
+    #[strategy(0..100usize)] previous_steps: usize,
+    #[strategy(0..100_000usize)] additional_jumps: usize,
+) {
+    let jumps = previous_steps + additional_jumps;
+    let initial = Ratchet::zero(seed);
+    let goal = {
+        let mut goal = initial.clone();
+        goal.inc_by(jumps);
+        goal
+    };
+
+    let mut iterator = PreviousIterator::new(&initial, &goal, 1_000_000_000).unwrap();
+
+    for _ in 0..previous_steps {
+        assert!(iterator.next().is_some());
+    }
+
+    // println!("{:#?}", iterator);
+
+    assert_eq!(iterator.step_count(), jumps - previous_steps);
+}
+
+#[proptest]
+fn prop_ratchet_previous_of_equal_is_none(
+    #[strategy(any::<[u8; 32]>().no_shrink())] seed: [u8; 32],
+    #[strategy(1..LARGE_EPOCH_LENGTH)] jump: usize,
+) {
+    let mut initial = Ratchet::zero(seed);
+    initial.inc_by(jump);
+
+    let mut iterator = PreviousIterator::new(&initial.clone(), &initial, 1_000).unwrap();
+
+    assert_eq!(iterator.next(), None);
+}
+
+#[proptest]
+fn prop_ratchet_previous_is_inc_reverse(
+    #[strategy(any::<[u8; 32]>().no_shrink())] seed: [u8; 32],
+    #[strategy(1..10_000usize)] jump: usize,
+) {
+    let initial = Ratchet::zero(seed);
+    let goal = {
+        let mut goal = initial.clone();
+        goal.inc_by(jump);
+        goal
+    };
+
+    let previous_iterator = PreviousIterator::new(&initial, &goal, 1_000_000_000).unwrap();
+
+    let forward_iterator = initial.clone().take(jump - 1);
+
+    let mut forward_collected_reversed = forward_iterator.collect::<Vec<Ratchet>>();
+    forward_collected_reversed.reverse();
+    forward_collected_reversed.push(initial.clone());
+
+    assert_eq!(
+        previous_iterator.collect::<Vec<Ratchet>>(),
+        forward_collected_reversed
+    );
 }
