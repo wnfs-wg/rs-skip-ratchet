@@ -417,7 +417,7 @@ fn prop_ratchet_step_count_is_inc_by(
 #[proptest]
 fn prop_ratchet_step_count_is_inc_by_minus_steps(
     #[strategy(any::<[u8; 32]>().no_shrink())] seed: [u8; 32],
-    #[strategy(0..10_000usize)] previous_steps: usize,
+    #[strategy(0..100usize)] previous_steps: usize,
     #[strategy(0..100_000usize)] additional_jumps: usize,
 ) {
     let jumps = previous_steps + additional_jumps;
@@ -433,6 +433,8 @@ fn prop_ratchet_step_count_is_inc_by_minus_steps(
     for _ in 0..previous_steps {
         assert!(iterator.next().is_some());
     }
+
+    // println!("{:#?}", iterator);
 
     assert_eq!(iterator.step_count(), jumps - previous_steps);
 }
