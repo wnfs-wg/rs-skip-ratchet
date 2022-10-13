@@ -279,7 +279,7 @@ fn test_ratchet_iterator() {
 }
 
 #[test]
-fn test_step_count() {
+fn test_step_count_regression() {
     let old_ratchet = Ratchet::new();
     let mut new_ratchet = old_ratchet.clone();
     new_ratchet.inc_by(LARGE_EPOCH_LENGTH + 10);
@@ -290,7 +290,7 @@ fn test_step_count() {
         assert!(iterator.next().is_some());
     }
 
-    assert_ne!(iterator.step_count(), 0); // Fails, even though there are 10 steps left.
+    assert_ne!(iterator.step_count(), 0);
 
     for _ in 0..10 {
         assert!(iterator.next().is_some());
