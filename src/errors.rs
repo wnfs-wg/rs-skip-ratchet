@@ -1,11 +1,9 @@
+use crate::constants::RATCHET_SIGNIFIER;
+use base64::DecodeError;
 use std::{
     error::Error,
     fmt::{self, Display, Formatter},
 };
-
-use base64::DecodeError;
-
-use crate::constants::RATCHET_SIGNIFIER;
 
 /// This type is used to indicate errors that occur interpreting a `Ratchet`
 #[derive(Debug)]

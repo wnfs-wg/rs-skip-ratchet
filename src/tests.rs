@@ -1,13 +1,11 @@
-use std::vec;
-
-use hex::FromHex;
-use proptest::prelude::*;
-use test_strategy::proptest;
-
 use crate::{
     constants::LARGE_EPOCH_LENGTH, hash::Hash, ratchet::PreviousIterator, seek::JumpSize,
     PreviousErr, Ratchet, RatchetSeeker,
 };
+use hex::FromHex;
+use proptest::prelude::*;
+use std::vec;
+use test_strategy::proptest;
 
 fn hash_from_hex(s: &str) -> Hash {
     Hash::from_raw(<[u8; 32]>::from_hex(s).unwrap())

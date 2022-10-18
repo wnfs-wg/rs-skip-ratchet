@@ -1,10 +1,9 @@
+use sha3::{Digest, Sha3_256};
 use std::{
     fmt::Debug,
     ops::{BitXor, Index, IndexMut, Not},
     slice::Iter,
 };
-
-use sha3::{Digest, Sha3_256};
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

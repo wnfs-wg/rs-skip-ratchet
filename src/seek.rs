@@ -1,6 +1,5 @@
-use std::cmp::{self, Ordering};
-
 use crate::Ratchet;
+use std::cmp::{self, Ordering};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// The different possible ratchet jumps
