@@ -1,11 +1,10 @@
-use std::fmt::{self, Display, Formatter};
-
 use crate::{
     constants::{LARGE_EPOCH_LENGTH, MEDIUM_EPOCH_LENGTH, RATCHET_SIGNIFIER},
     hash::Hash,
     PreviousErr, RatchetErr,
 };
 use rand::Rng;
+use std::fmt::{self, Display, Formatter};
 
 /// A (Skip) `Ratchet` is a data structure for deriving keys that maintain backward secrecy.
 /// Unlike hash chains, this data structure is capable of efficiently making large leaps in hash count.

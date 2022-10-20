@@ -4,15 +4,45 @@
   </a>
 
   <h1 align="center">Skip Ratchet</h1>
+
+  <p>
+    <a href="https://crates.io/crates/skip_ratchet">
+      <img src="https://img.shields.io/crates/v/skip_ratchet?label=crates" alt="Crate Information">
+    </a>
+    <a href="https://codecov.io/gh/wnfs-wg/rs-skip-ratchet">
+      <img src="https://codecov.io/gh/wnfs-wg/rs-skip-ratchet/branch/main/graph/badge.svg?token=95YHXFMFF4" alt="Code Coverage"/>
+    </a>
+    <a href="https://github.com/wnfs-wg/rs-skip-ratchet/actions?query=">
+      <img src="https://github.com/wnfs-wg/rs-skip-ratchet/actions/workflows/checks.yaml/badge.svg" alt="Build Status">
+    </a>
+    <a href="https://github.com/wnfs-wg/rs-skip-ratchet/blob/main/LICENSE">
+      <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License">
+    </a>
+    <a href="https://docs.rs/skip-ratchet">
+      <img src="https://img.shields.io/static/v1?label=Docs&message=docs.rs&color=blue" alt="Docs">
+    </a>
+    <a href="https://discord.gg/zAQBDEq">
+      <img src="https://img.shields.io/static/v1?label=Discord&message=join%20us!&color=mediumslateblue" alt="Discord">
+    </a>
+  </p>
 </div>
 
 This library implements the [Skip Ratchet paper][paper]. Skip ratchet is a data structure for deriving keys that maintain backward secrecy. Unlike hash chains, this data structure is capable of efficiently making large leaps in hash count.
+
+## Outline
+
+- [Usage](#usage)
+- [Building the Project](#building-the-project)
+- [Testing the Project](#testing-the-project)
+- [Contributing](#contributing)
+- [Getting Help](#getting-help)
+- [License](#license)
 
 ## Usage
 
 #### Creating a new ratchet and advancing it.
 
-```rs
+```rust
 use skip_ratchet::Ratchet;
 
 let mut ratchet = Ratchet::new();
@@ -23,7 +53,7 @@ println!("{:?}", ratchet.derive_key());
 
 #### Getting the previous versions of a ratchet.
 
-```rs
+```rust
 use skip_ratchet::Ratchet;
 
 let mut old_ratchet = Ratchet::new();
@@ -51,17 +81,38 @@ for revision in recent_ratchet.previous(&old_ratchet, 10).unwrap() {
   cd rs-skip-ratchet
   ```
 
+- Build the project
+
+  ```bash
+  cargo build
+  ```
+
+## Testing the Project
+
 - Run tests
 
   ```bash
-  cargo test --release
+  cargo test
   ```
 
-## Other Implementations
+## Contributing
 
-- [Typescript][ts-impl]
-- [Go][go-impl]
+### Pre-commit Hook
 
-[ts-impl]: https://github.com/fission-suite/webnative/blob/matheus23/wnfs2/src/fs/data/private/spiralratchet.ts
-[go-impl]: https://github.com/qri-io/wnfs-go/tree/master/private/ratchet
-[paper]: https://github.com/fission-codes/skip-ratchet-paper/blob/main/skip-ratchet.pdf
+This library recommends using [pre-commit][pre-commit] for running pre-commit hooks. Please run this before every commit and/or push.
+
+- Once installed, Run `pre-commit install` to setup the pre-commit hooks locally.  This will reduce failed CI builds.
+- If you are doing interim commits locally, and for some reason if you _don't_ want pre-commit hooks to fire, you can run
+  `git commit -a -m "Your message here" --no-verify`.
+
+## Getting Help
+
+For usage questions, usecases, or issues reach out to us in our [Discord webnative-fs channel](https://discord.gg/YbT6x7Wkvk).
+We would be happy to try to answer your question or try opening a new issue on Github.
+
+## License
+
+This project is licensed under the [Apache License 2.0](https://github.com/wnfs-wg/rs-skip-ratchet/blob/main/LICENSE).
+
+[pre-commit]: https://pre-commit.com/
+
