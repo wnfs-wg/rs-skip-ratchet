@@ -114,5 +114,5 @@ We would be happy to try to answer your question or try opening a new issue on G
 
 This project is licensed under the [Apache License 2.0](https://github.com/wnfs-wg/rs-skip-ratchet/blob/main/LICENSE).
 
+[paper]: https://eprint.iacr.org/2022/1078.pdf
 [pre-commit]: https://pre-commit.com/
-
