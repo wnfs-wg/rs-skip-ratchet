@@ -107,7 +107,7 @@ impl Debug for Hash {
                 write!(f, "..")?;
                 break;
             } else {
-                write!(f, "{:02X}", byte)?;
+                write!(f, "{byte:02X}")?;
             }
         }
 

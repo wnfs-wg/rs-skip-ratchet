@@ -25,14 +25,14 @@ pub enum PreviousErr {
 impl Display for RatchetErr {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
-            RatchetErr::BadLen(i) => write!(f, "invalid ratchet length {}", i),
+            RatchetErr::BadLen(i) => write!(f, "invalid ratchet length {i}"),
             RatchetErr::BadEncoding(s) => write!(
                 f,
                 "unsupported ratched encoding: '{}'. only '{}' is supported",
                 s, RATCHET_SIGNIFIER
             ),
             RatchetErr::UnknownRelation => write!(f, "cannot relate ratchets"),
-            RatchetErr::Decode(e) => write!(f, "{:?}", e),
+            RatchetErr::Decode(e) => write!(f, "{e:?}"),
         }
     }
 }
