@@ -105,6 +105,22 @@ This library recommends using [pre-commit][pre-commit] for running pre-commit ho
 - If you are doing interim commits locally, and for some reason if you _don't_ want pre-commit hooks to fire, you can run
   `git commit -a -m "Your message here" --no-verify`.
 
+### Conventional Commits
+
+This project *lightly* follows the [Conventional Commits convention][commit-spec-site]
+to help explain commit history and tie in with our release process. The full
+specification can be found [here][commit-spec]. We recommend prefixing your
+commits with a type of `fix`, `feat`, `docs`, `ci`, `refactor`, etc...,
+structured like so:
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
 ## Getting Help
 
 For usage questions, usecases, or issues reach out to us in our [Discord webnative-fs channel](https://discord.gg/YbT6x7Wkvk).
@@ -114,5 +130,7 @@ We would be happy to try to answer your question or try opening a new issue on G
 
 This project is licensed under the [Apache License 2.0](https://github.com/wnfs-wg/rs-skip-ratchet/blob/main/LICENSE).
 
+[commit-spec]: https://www.conventionalcommits.org/en/v1.0.0/#specification
+[commit-spec-site]: https://www.conventionalcommits.org/{% if bench %}
 [paper]: https://eprint.iacr.org/2022/1078.pdf
 [pre-commit]: https://pre-commit.com/
