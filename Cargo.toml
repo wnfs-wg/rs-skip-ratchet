@@ -22,7 +22,7 @@ serde = ["dep:serde"]
 
 [dev-dependencies]
 proptest = "1.0"
-test-strategy = "0.2"
+test-strategy = "0.3"
 
 [profile.test]
 opt-level = 3
