@@ -3,9 +3,9 @@ use crate::{
     hash::Hash,
     PreviousErr, RatchetErr,
 };
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use rand::Rng;
 use std::fmt::{self, Display, Formatter};
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 
 /// A (Skip) `Ratchet` is a data structure for deriving keys that maintain backward secrecy.
 /// Unlike hash chains, this data structure is capable of efficiently making large leaps in hash count.
