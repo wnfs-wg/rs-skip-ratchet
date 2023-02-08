@@ -3,6 +3,7 @@ use crate::{
     hash::Hash,
     PreviousErr, RatchetErr,
 };
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use rand::Rng;
 use std::fmt::{self, Display, Formatter};
 
@@ -340,8 +341,7 @@ impl TryFrom<String> for Ratchet {
         if &string[0..2] != RATCHET_SIGNIFIER {
             return Err(RatchetErr::BadEncoding(string[0..2].to_string()));
         }
-
-        let d = base64::decode_config(&string[2..], base64::URL_SAFE_NO_PAD)?;
+        let d = URL_SAFE_NO_PAD.decode(&string[2..])?;
 
         let mut ratchet = Ratchet {
             large: Hash::zero(),
@@ -386,7 +386,7 @@ impl From<&Ratchet> for String {
             b[i + 66] = *byte;
         }
 
-        RATCHET_SIGNIFIER.to_owned() + &base64::encode_config(b, base64::URL_SAFE_NO_PAD)
+        RATCHET_SIGNIFIER.to_owned() + &URL_SAFE_NO_PAD.encode(b)
     }
 }
 
