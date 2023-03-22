@@ -19,7 +19,7 @@ use std::fmt::{self, Display, Formatter};
 /// use skip_ratchet::Ratchet;
 ///
 /// let ratchet = Ratchet::new(&mut rand::thread_rng());
-/// let key = ratchet.derive_key();
+/// let key = ratchet.derive_key("awesome.ly key derivation");
 /// ```
 ///
 /// [1]: https://github.com/fission-suite/skip-ratchet-paper/blob/main/spiral-ratchet.pdf
@@ -122,7 +122,7 @@ impl Ratchet {
     /// use skip_ratchet::Ratchet;
     ///
     /// let ratchet = Ratchet::new(&mut rand::thread_rng());
-    /// let key = ratchet.derive_key();
+    /// let key = ratchet.derive_key("awesome.ly temporal key derivation");
     /// ```
     pub fn derive_key(&self, purpose: impl AsRef<[u8]>) -> [u8; 32] {
         let mut hasher = Sha3_256::new();
@@ -163,7 +163,7 @@ impl Ratchet {
     /// let mut ratchet = Ratchet::new(&mut rand::thread_rng());
     /// ratchet.inc_by(3);
     ///
-    /// println!("{:?}", String::from(&ratchet));
+    /// println!("{:?}", ratchet);
     /// ```
     pub fn inc_by(&mut self, n: usize) {
         let (jumped, _) = inc_by(self, n);
