@@ -171,6 +171,10 @@ impl Ratchet {
     }
 
     pub fn compare(&self, other: &Ratchet, max_steps: usize) -> Result<isize, RatchetErr> {
+        if self.salt != other.salt {
+            return Err(RatchetErr::UnknownRelation);
+        }
+
         let self_counter = self.combined_counter() as isize;
         let other_counter = other.combined_counter() as isize;
         if self.large == other.large {
@@ -292,10 +296,18 @@ impl Ratchet {
     /// let (r, s) = ratchet.next_large_epoch();
     /// ```
     pub fn next_large_epoch(&self) -> (Ratchet, usize) {
-        (
-            Ratchet::zero(*self.large.as_slice()),
-            LARGE_EPOCH_LENGTH - self.combined_counter(),
-        )
+        let jump_count = LARGE_EPOCH_LENGTH - self.combined_counter();
+
+        let jumped = Ratchet {
+            salt: self.salt,
+            large: Hash::from(HASH_PURPOSE_RATCHET_LARGE, self.large),
+            medium: Hash::from(self.salt, self.large),
+            medium_counter: 0,
+            small: Hash::from(self.salt, self.medium),
+            small_counter: 0,
+        };
+
+        (jumped, jump_count)
     }
 
     /// Returns the next medium epoch of the ratchet.
@@ -318,7 +330,7 @@ impl Ratchet {
             large: self.large,
             medium: Hash::from(HASH_PURPOSE_RATCHET_MEDIUM, self.medium),
             medium_counter: self.medium_counter + 1,
-            small: Hash::from(HASH_PURPOSE_RATCHET_SMALL, !self.medium),
+            small: Hash::from(self.salt, self.medium),
             small_counter: 0,
         };
 
