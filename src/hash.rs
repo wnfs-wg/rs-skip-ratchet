@@ -18,7 +18,7 @@ impl Hash {
     pub fn from_chain(purpose: impl AsRef<[u8]>, value: impl AsRef<[u8]>, n: usize) -> Self {
         let mut hash = Self::from(&purpose, value);
         for _ in 1..n {
-            hash = Self::from(&purpose, &hash);
+            hash = Self::from(&purpose, hash);
         }
 
         hash
@@ -136,7 +136,7 @@ mod hash_tests {
 
     #[test]
     fn can_hash_items() {
-        let hash = Hash::from(&[], &b"An example of a byte array");
+        let hash = Hash::from([], b"An example of a byte array");
         let expected = Hash::from_raw([
             0xa1, 0x6f, 0x2d, 0x12, 0x23, 0x21, 0x11, 0xb2, 0xb8, 0xca, 0x57, 0x02, 0xcf, 0x55,
             0x25, 0x57, 0xfb, 0xff, 0xc3, 0x40, 0x22, 0x72, 0x62, 0x8e, 0x9c, 0xc0, 0x08, 0x89,
@@ -180,11 +180,11 @@ mod hash_tests {
         let purpose = "test Hash::from_chain";
         let hash_1 = {
             let h = Hash::from(purpose, b"James Cameron");
-            let h = Hash::from(purpose, &h);
-            let h = Hash::from(purpose, &h);
-            let h = Hash::from(purpose, &h);
+            let h = Hash::from(purpose, h);
+            let h = Hash::from(purpose, h);
+            let h = Hash::from(purpose, h);
 
-            Hash::from(purpose, &h)
+            Hash::from(purpose, h)
         };
 
         let hash_2 = Hash::from_chain(purpose, b"James Cameron", 5);

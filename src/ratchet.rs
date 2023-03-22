@@ -35,10 +35,10 @@ pub struct Ratchet {
     pub(crate) small_counter: u8,
 }
 
-pub static HASH_PURPOSE_RATCHET_SMALL: &'static str = "Skip Ratchet Medium";
-pub static HASH_PURPOSE_RATCHET_MEDIUM: &'static str = "Skip Ratchet Small";
-pub static HASH_PURPOSE_RATCHET_LARGE: &'static str = "Skip Ratchet Large";
-pub static HASH_PURPOSE_RATCHET_SALT: &'static str = "Skip Ratchet Salt";
+pub static HASH_PURPOSE_RATCHET_SMALL: &str = "Skip Ratchet Medium";
+pub static HASH_PURPOSE_RATCHET_MEDIUM: &str = "Skip Ratchet Small";
+pub static HASH_PURPOSE_RATCHET_LARGE: &str = "Skip Ratchet Large";
+pub static HASH_PURPOSE_RATCHET_SALT: &str = "Skip Ratchet Salt";
 
 /// An iterator over `Ratchet`'s between two `Ratchet`'s.
 ///
@@ -88,8 +88,8 @@ impl Ratchet {
         Ratchet {
             salt,
             large: Hash::from(HASH_PURPOSE_RATCHET_LARGE, seed),
-            medium: Hash::from_chain(HASH_PURPOSE_RATCHET_MEDIUM, &medium, inc_med.into()),
-            small: Hash::from_chain(HASH_PURPOSE_RATCHET_SMALL, &small, inc_small.into()),
+            medium: Hash::from_chain(HASH_PURPOSE_RATCHET_MEDIUM, medium, inc_med.into()),
+            small: Hash::from_chain(HASH_PURPOSE_RATCHET_SMALL, small, inc_small.into()),
             medium_counter: inc_med,
             small_counter: inc_small,
         }
@@ -100,7 +100,7 @@ impl Ratchet {
         let seed = Hash::from_raw(seed);
 
         let salt = Salt::from(Hash::from(HASH_PURPOSE_RATCHET_SALT, seed));
-        let large = Hash::from(HASH_PURPOSE_RATCHET_LARGE, &seed);
+        let large = Hash::from(HASH_PURPOSE_RATCHET_LARGE, seed);
         let medium = Hash::from(HASH_PURPOSE_RATCHET_MEDIUM, seed);
         let small = Hash::from(HASH_PURPOSE_RATCHET_SMALL, seed);
 
@@ -150,7 +150,7 @@ impl Ratchet {
             return;
         }
 
-        self.small = Hash::from(HASH_PURPOSE_RATCHET_SMALL, &self.small);
+        self.small = Hash::from(HASH_PURPOSE_RATCHET_SMALL, self.small);
         self.small_counter += 1;
     }
 
@@ -191,8 +191,8 @@ impl Ratchet {
         // Since the two ratches might just be generated from a totally different setup, we can never _really_ know which one is the bigger one.
         // They might be unrelated.
         while steps_left > 0 {
-            self_large = Hash::from(HASH_PURPOSE_RATCHET_LARGE, &self_large);
-            other_large = Hash::from(HASH_PURPOSE_RATCHET_LARGE, &other_large);
+            self_large = Hash::from(HASH_PURPOSE_RATCHET_LARGE, self_large);
+            other_large = Hash::from(HASH_PURPOSE_RATCHET_LARGE, other_large);
             steps += 1;
 
             if other_large == self.large {
@@ -316,9 +316,9 @@ impl Ratchet {
         let jumped = Ratchet {
             salt: self.salt,
             large: self.large,
-            medium: Hash::from(HASH_PURPOSE_RATCHET_MEDIUM, &self.medium),
+            medium: Hash::from(HASH_PURPOSE_RATCHET_MEDIUM, self.medium),
             medium_counter: self.medium_counter + 1,
-            small: Hash::from(HASH_PURPOSE_RATCHET_SMALL, &!self.medium),
+            small: Hash::from(HASH_PURPOSE_RATCHET_SMALL, !self.medium),
             small_counter: 0,
         };
 
@@ -528,7 +528,7 @@ pub(crate) fn inc_by(ratchet: &mut Ratchet, n: usize) -> (Ratchet, usize) {
         return inc_by(&mut jumped, n - jump_count);
     }
 
-    ratchet.small = Hash::from_chain(HASH_PURPOSE_RATCHET_SMALL, &ratchet.small, n);
+    ratchet.small = Hash::from_chain(HASH_PURPOSE_RATCHET_SMALL, ratchet.small, n);
     ratchet.small_counter += n as u8;
 
     (ratchet.clone(), n)

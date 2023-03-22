@@ -151,7 +151,7 @@ fn test_ratchet_previous_equal_error() {
         Ok(_) => panic!("expected PreviousErr::EqualRatchets, got an iterator instead"),
         Err(e) => match e {
             PreviousErr::EqualRatchets => (),
-            _ => panic!("expected PreviousErr::EqualRatchets, got {:?}", e),
+            _ => panic!("expected PreviousErr::EqualRatchets, got {e:?}"),
         },
     }
 }
@@ -165,7 +165,7 @@ fn test_ratchet_previous_older_error() {
         Ok(_) => panic!("expected PreviousErr::EqualRatchets, got an iterator instead"),
         Err(e) => match e {
             PreviousErr::OlderRatchet => (),
-            _ => panic!("expected PreviousErr::EqualRatchets, got {:?}", e),
+            _ => panic!("expected PreviousErr::EqualRatchets, got {e:?}"),
         },
     }
 }
@@ -188,7 +188,7 @@ fn test_ratchet_previous_increments() {
         recent_ratchet.inc_by(inc);
         let got_ratchets = match recent_ratchet.previous(&old, discrepancy_budget) {
             Ok(iter) => iter.collect::<Vec<_>>(),
-            Err(e) => panic!("error for previous with inc {}: {:?}", inc, e),
+            Err(e) => panic!("error for previous with inc {inc}: {e:?}"),
         };
 
         assert_eq!(expected_ratchets.len(), got_ratchets.len());
@@ -425,7 +425,7 @@ fn prop_ratchet_previous_is_inc_reverse(
 
     let mut forward_collected_reversed = forward_iterator.collect::<Vec<Ratchet>>();
     forward_collected_reversed.reverse();
-    forward_collected_reversed.push(initial.clone());
+    forward_collected_reversed.push(initial);
 
     assert_eq!(
         previous_iterator.collect::<Vec<Ratchet>>(),
