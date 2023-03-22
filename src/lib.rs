@@ -2,6 +2,7 @@ mod constants;
 mod errors;
 mod hash;
 pub mod ratchet;
+mod salt;
 pub mod seek;
 #[cfg(feature = "serde")]
 mod serde_byte_array;

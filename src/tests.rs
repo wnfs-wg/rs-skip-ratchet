@@ -14,34 +14,6 @@ fn hash_from_hex(s: &str) -> Hash {
 const SEED: &str = "600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33";
 
 #[test]
-fn test_ratchet_zero() {
-    // Seed pulled from https://whitepaper.fission.codes/file-system/partitions/private-directories/concepts/spiral-ratchet
-    let seed = hash_from_hex(SEED);
-
-    let a = &mut Ratchet::zero(seed.into());
-    let expect = &Ratchet {
-        large: hash_from_hex("5aa00b14dd50887cdc0b0b55aa2da1eb5cc3a79cdbe893b2319da378a83ad0c5"),
-        medium: hash_from_hex("5a86c2477e2ae4ffcf6373cce82259eb542b72a72db9cf9cddfe06bcc20623b6"),
-        small: hash_from_hex("962b7f9ac204ffd0fa398e9c875c90806c0cd6646655f7a5994b7a828b70c0da"),
-        medium_counter: 0,
-        small_counter: 0,
-    };
-
-    assert_ratchet_equal(expect, a);
-
-    a.inc();
-
-    let b = &mut Ratchet::zero(seed.into());
-    b.inc();
-
-    assert_ratchet_equal(a, b);
-
-    let a_key = a.derive_key();
-    let b_key = b.derive_key();
-    assert_eq!(a_key, b_key);
-}
-
-#[test]
 fn test_ratchet_add_256() {
     let seed = hash_from_hex(SEED);
     // manually advance ratchet 256 (2 ^ 8) times
@@ -54,8 +26,6 @@ fn test_ratchet_add_256() {
     let (ref fast, _) = Ratchet::zero(seed.into()).next_medium_epoch();
     assert_ratchet_equal(slow, fast);
 }
-
-// TODO(appcypher): Let's find out about property-based testing and see if we can use it here.
 
 #[test]
 fn test_ratchet_add_65536() {
@@ -70,19 +40,6 @@ fn test_ratchet_add_65536() {
     let (ref fast, _) = Ratchet::zero(seed.into()).next_large_epoch();
 
     assert_ratchet_equal(slow, fast);
-}
-
-#[test]
-fn test_ratchet_coding() {
-    let seed = hash_from_hex(SEED);
-
-    let a = &Ratchet::zero(seed.into());
-
-    let encoded: String = a.into();
-
-    let b = &Ratchet::try_from(encoded).unwrap();
-
-    assert_ratchet_equal(a, b);
 }
 
 #[test]

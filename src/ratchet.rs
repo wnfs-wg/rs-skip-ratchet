@@ -1,10 +1,11 @@
 use crate::{
-    constants::{LARGE_EPOCH_LENGTH, MEDIUM_EPOCH_LENGTH, RATCHET_SIGNIFIER},
+    constants::{LARGE_EPOCH_LENGTH, MEDIUM_EPOCH_LENGTH},
     hash::Hash,
+    salt::Salt,
     PreviousErr, RatchetErr,
 };
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use rand::{Rng, RngCore};
+use sha3::{Digest, Sha3_256};
 use std::fmt::{self, Display, Formatter};
 
 /// A (Skip) `Ratchet` is a data structure for deriving keys that maintain backward secrecy.
@@ -26,12 +27,18 @@ use std::fmt::{self, Display, Formatter};
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 #[derive(Clone, PartialEq, Debug, Eq)]
 pub struct Ratchet {
+    pub(crate) salt: Salt,
     pub(crate) large: Hash,
     pub(crate) medium: Hash,
     pub(crate) small: Hash,
     pub(crate) medium_counter: u8,
     pub(crate) small_counter: u8,
 }
+
+pub static HASH_PURPOSE_RATCHET_SMALL: &'static str = "Skip Ratchet Medium";
+pub static HASH_PURPOSE_RATCHET_MEDIUM: &'static str = "Skip Ratchet Small";
+pub static HASH_PURPOSE_RATCHET_LARGE: &'static str = "Skip Ratchet Large";
+pub static HASH_PURPOSE_RATCHET_SALT: &'static str = "Skip Ratchet Salt";
 
 /// An iterator over `Ratchet`'s between two `Ratchet`'s.
 ///
@@ -70,17 +77,19 @@ impl Ratchet {
     /// ```
     pub fn new(rng: &mut impl RngCore) -> Self {
         // 32 bytes for the seed, plus two extra bytes to randomize small & medium starts
-        let seed = Hash::from_raw(rng.gen::<[u8; 32]>());
-        let medium = Hash::from(&!seed);
-        let small = Hash::from(&!medium);
-
+        let seed = rng.gen::<[u8; 32]>();
         let inc_med = rng.gen::<u8>();
         let inc_small = rng.gen::<u8>();
 
+        let salt = Salt::from(Hash::from(HASH_PURPOSE_RATCHET_SALT, seed));
+        let medium = Hash::from(HASH_PURPOSE_RATCHET_MEDIUM, seed);
+        let small = Hash::from(HASH_PURPOSE_RATCHET_SMALL, seed);
+
         Ratchet {
-            large: Hash::from(&seed),
-            medium: Hash::from_chain(&medium, inc_med.into()),
-            small: Hash::from_chain(&small, inc_small.into()),
+            salt,
+            large: Hash::from(HASH_PURPOSE_RATCHET_LARGE, seed),
+            medium: Hash::from_chain(HASH_PURPOSE_RATCHET_MEDIUM, &medium, inc_med.into()),
+            small: Hash::from_chain(HASH_PURPOSE_RATCHET_SMALL, &small, inc_small.into()),
             medium_counter: inc_med,
             small_counter: inc_small,
         }
@@ -90,11 +99,14 @@ impl Ratchet {
     pub fn zero(seed: [u8; 32]) -> Self {
         let seed = Hash::from_raw(seed);
 
-        let medium = Hash::from(&!seed);
-        let small = Hash::from(&!medium);
+        let salt = Salt::from(Hash::from(HASH_PURPOSE_RATCHET_SALT, seed));
+        let large = Hash::from(HASH_PURPOSE_RATCHET_LARGE, &seed);
+        let medium = Hash::from(HASH_PURPOSE_RATCHET_MEDIUM, seed);
+        let small = Hash::from(HASH_PURPOSE_RATCHET_SMALL, seed);
 
         Ratchet {
-            large: Hash::from(&seed),
+            salt,
+            large,
             medium,
             small,
             medium_counter: 0,
@@ -112,8 +124,13 @@ impl Ratchet {
     /// let ratchet = Ratchet::new(&mut rand::thread_rng());
     /// let key = ratchet.derive_key();
     /// ```
-    pub fn derive_key(&self) -> [u8; 32] {
-        Hash::from(&(self.large ^ self.medium ^ self.small)).bytes()
+    pub fn derive_key(&self, purpose: impl AsRef<[u8]>) -> [u8; 32] {
+        let mut hasher = Sha3_256::new();
+        hasher.update(purpose);
+        hasher.update(self.large);
+        hasher.update(self.medium);
+        hasher.update(self.small);
+        hasher.finalize().into()
     }
 
     /// Moves the ratchet forward by one step.
@@ -133,7 +150,7 @@ impl Ratchet {
             return;
         }
 
-        self.small = Hash::from(&self.small);
+        self.small = Hash::from(HASH_PURPOSE_RATCHET_SMALL, &self.small);
         self.small_counter += 1;
     }
 
@@ -174,8 +191,8 @@ impl Ratchet {
         // Since the two ratches might just be generated from a totally different setup, we can never _really_ know which one is the bigger one.
         // They might be unrelated.
         while steps_left > 0 {
-            self_large = Hash::from(&self_large);
-            other_large = Hash::from(&other_large);
+            self_large = Hash::from(HASH_PURPOSE_RATCHET_LARGE, &self_large);
+            other_large = Hash::from(HASH_PURPOSE_RATCHET_LARGE, &other_large);
             steps += 1;
 
             if other_large == self.large {
@@ -297,10 +314,11 @@ impl Ratchet {
         }
 
         let jumped = Ratchet {
+            salt: self.salt,
             large: self.large,
-            medium: Hash::from(&self.medium),
+            medium: Hash::from(HASH_PURPOSE_RATCHET_MEDIUM, &self.medium),
             medium_counter: self.medium_counter + 1,
-            small: Hash::from(&!self.medium),
+            small: Hash::from(HASH_PURPOSE_RATCHET_SMALL, &!self.medium),
             small_counter: 0,
         };
 
@@ -322,66 +340,6 @@ impl Ratchet {
         let mut ratchet = self.clone();
         ratchet.inc();
         ratchet
-    }
-}
-
-impl TryFrom<String> for Ratchet {
-    type Error = RatchetErr;
-
-    fn try_from(string: String) -> Result<Self, Self::Error> {
-        if string.len() != 133 {
-            return Err(RatchetErr::BadLen(string.len()));
-        }
-
-        if &string[0..2] != RATCHET_SIGNIFIER {
-            return Err(RatchetErr::BadEncoding(string[0..2].to_string()));
-        }
-        let d = URL_SAFE_NO_PAD.decode(&string[2..])?;
-
-        let mut ratchet = Ratchet {
-            large: Hash::zero(),
-            medium: Hash::zero(),
-            small: Hash::zero(),
-            small_counter: 0,
-            medium_counter: 0,
-        };
-
-        for (i, byte) in d.iter().enumerate() {
-            match i {
-                0..=31 => ratchet.small[i] = *byte,
-                32 => ratchet.small_counter = *byte,
-                33..=64 => ratchet.medium[i - 33] = *byte,
-                65 => ratchet.medium_counter = *byte,
-                66..=97 => ratchet.large[i - 66] = *byte,
-                _ => (),
-            }
-        }
-
-        Ok(ratchet)
-    }
-}
-
-impl From<&Ratchet> for String {
-    fn from(ratchet: &Ratchet) -> Self {
-        let mut b: [u8; 98] = [0; 98];
-
-        for (i, byte) in ratchet.small.iter().enumerate() {
-            b[i] = *byte;
-        }
-
-        b[32] = ratchet.small_counter;
-
-        for (i, byte) in ratchet.medium.iter().enumerate() {
-            b[i + 33] = *byte;
-        }
-
-        b[65] = ratchet.medium_counter;
-
-        for (i, byte) in ratchet.large.iter().enumerate() {
-            b[i + 66] = *byte;
-        }
-
-        RATCHET_SIGNIFIER.to_owned() + &URL_SAFE_NO_PAD.encode(b)
     }
 }
 
@@ -570,7 +528,7 @@ pub(crate) fn inc_by(ratchet: &mut Ratchet, n: usize) -> (Ratchet, usize) {
         return inc_by(&mut jumped, n - jump_count);
     }
 
-    ratchet.small = Hash::from_chain(&ratchet.small, n);
+    ratchet.small = Hash::from_chain(HASH_PURPOSE_RATCHET_SMALL, &ratchet.small, n);
     ratchet.small_counter += n as u8;
 
     (ratchet.clone(), n)
