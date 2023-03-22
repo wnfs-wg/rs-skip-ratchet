@@ -4,7 +4,7 @@ use crate::{
     PreviousErr, RatchetErr,
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use rand::Rng;
+use rand::{Rng, RngCore};
 use std::fmt::{self, Display, Formatter};
 
 /// A (Skip) `Ratchet` is a data structure for deriving keys that maintain backward secrecy.
@@ -23,6 +23,7 @@ use std::fmt::{self, Display, Formatter};
 ///
 /// [1]: https://github.com/fission-suite/skip-ratchet-paper/blob/main/spiral-ratchet.pdf
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 #[derive(Clone, PartialEq, Debug, Eq)]
 pub struct Ratchet {
     pub(crate) large: Hash,
@@ -67,14 +68,14 @@ impl Ratchet {
     ///
     /// let ratchet = Ratchet::new();
     /// ```
-    pub fn new() -> Self {
+    pub fn new(rng: &mut impl RngCore) -> Self {
         // 32 bytes for the seed, plus two extra bytes to randomize small & medium starts
-        let seed = Hash::from_raw(rand::thread_rng().gen::<[u8; 32]>());
+        let seed = Hash::from_raw(rng.gen::<[u8; 32]>());
         let medium = Hash::from(&!seed);
         let small = Hash::from(&!medium);
 
-        let inc_med = rand::thread_rng().gen::<u8>();
-        let inc_small = rand::thread_rng().gen::<u8>();
+        let inc_med = rng.gen::<u8>();
+        let inc_small = rng.gen::<u8>();
 
         Ratchet {
             large: Hash::from(&seed),
@@ -321,12 +322,6 @@ impl Ratchet {
         let mut ratchet = self.clone();
         ratchet.inc();
         ratchet
-    }
-}
-
-impl Default for Ratchet {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

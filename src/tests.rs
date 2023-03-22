@@ -278,7 +278,7 @@ fn test_ratchet_iterator() {
 
 #[test]
 fn test_step_count_regression() {
-    let old_ratchet = Ratchet::new();
+    let old_ratchet = Ratchet::new(&mut rand::thread_rng());
     let mut new_ratchet = old_ratchet.clone();
     new_ratchet.inc_by(LARGE_EPOCH_LENGTH + 10);
 
