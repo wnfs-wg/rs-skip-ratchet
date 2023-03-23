@@ -15,8 +15,8 @@ fn salt_from_hex(s: &str) -> Salt {
     Salt::from_raw(<[u8; 32]>::from_hex(s).unwrap())
 }
 
-fn salt() -> Salt {
-    salt_from_hex("eafe7de965c8a149d6ad0e1a4bd28c79db7d408f6655b1570e9c16d4a96bfc5e")
+fn salt() -> [u8; 32] {
+    salt_from_hex("eafe7de965c8a149d6ad0e1a4bd28c79db7d408f6655b1570e9c16d4a96bfc5e").into()
 }
 
 fn seed() -> [u8; 32] {
