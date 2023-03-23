@@ -80,14 +80,14 @@ impl Ratchet {
     }
 
     /// Creates a new ratchet from a seed with zero counters.
-    pub fn zero(salt: Salt, large_pre: &[u8; 32]) -> Self {
+    pub fn zero(salt: [u8; 32], large_pre: &[u8; 32]) -> Self {
         let large = Hash::from([], large_pre);
         let medium_pre = Hash::from(salt, large_pre);
         let medium = Hash::from([], medium_pre);
         let small = Hash::from(salt, medium_pre);
 
         Ratchet {
-            salt,
+            salt: Salt::from_raw(salt),
             large,
             medium,
             medium_counter: 0,
@@ -98,7 +98,7 @@ impl Ratchet {
 
     /// Creates a new ratchet with given seed with given counters.
     pub fn from_seed(seed: &[u8; 32], inc_small: u8, inc_med: u8) -> Self {
-        let salt = Salt::from(Hash::from("Skip Ratchet Slt", seed));
+        let salt = Hash::from("Skip Ratchet Slt", seed).into();
         let mut ratchet = Self::zero(salt, Hash::from("Skip Ratchet Lrg", seed).as_slice());
 
         for _ in 0..inc_med {
@@ -312,7 +312,7 @@ impl Ratchet {
     pub fn next_large_epoch(&mut self) -> usize {
         let jump_count = LARGE_EPOCH_LENGTH - self.combined_counter();
 
-        *self = Ratchet::zero(self.salt, self.large.as_slice());
+        *self = Ratchet::zero(self.salt.into(), self.large.as_slice());
 
         jump_count
     }
