@@ -1,12 +1,5 @@
 use crate::{
-    constants::LARGE_EPOCH_LENGTH,
-    hash::Hash,
-    ratchet::{
-        PreviousIterator, HASH_PURPOSE_RATCHET_LARGE, HASH_PURPOSE_RATCHET_MEDIUM,
-        HASH_PURPOSE_RATCHET_SALT, HASH_PURPOSE_RATCHET_SMALL,
-    },
-    salt::Salt,
-    seek::JumpSize,
+    constants::LARGE_EPOCH_LENGTH, hash::Hash, ratchet::PreviousIterator, seek::JumpSize,
     PreviousErr, Ratchet, RatchetSeeker,
 };
 use hex::FromHex;
@@ -24,19 +17,19 @@ const SEED: &str = "600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca
 fn test_ratchet_add_256() {
     let seed = hash_from_hex(SEED);
     // manually advance ratchet 256 (2 ^ 8) times
-    let slow = &mut Ratchet::zero(seed.into());
+    let slow = &mut Ratchet::zero(&seed.into());
     for _ in 0..256 {
         slow.inc();
     }
 
     // fast jump 256 values in one shot
-    let (ref fast, _) = Ratchet::zero(seed.into()).next_medium_epoch();
+    let (ref fast, _) = Ratchet::zero(&seed.into()).next_medium_epoch();
     assert_ratchet_equal(slow, fast);
 }
 
 #[test]
 fn test_ratchet_compare() {
-    let one = &mut Ratchet::zero(hash_from_hex(SEED).into());
+    let one = &mut Ratchet::zero(&hash_from_hex(SEED).into());
 
     let two = &mut one.clone();
     two.inc();
@@ -112,7 +105,7 @@ fn test_ratchet_compare() {
     }
 
     let unrelated = Ratchet::zero(
-        hash_from_hex("500b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33").into(),
+        &hash_from_hex("500b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33").into(),
     );
 
     // Panic if this does not error
@@ -121,10 +114,10 @@ fn test_ratchet_compare() {
 
 #[test]
 fn test_ratchet_equal() {
-    let a = Ratchet::zero(hash_from_hex(SEED).into());
-    let b = Ratchet::zero(hash_from_hex(SEED).into());
+    let a = Ratchet::zero(&hash_from_hex(SEED).into());
+    let b = Ratchet::zero(&hash_from_hex(SEED).into());
     let c = Ratchet::zero(
-        hash_from_hex("0000000000000000000000000000000000000000000000000000000000000000").into(),
+        &hash_from_hex("0000000000000000000000000000000000000000000000000000000000000000").into(),
     );
 
     if a != b {
@@ -138,7 +131,7 @@ fn test_ratchet_equal() {
 
 #[test]
 fn test_ratchet_previous_equal_error() {
-    let old = Ratchet::zero(hash_from_hex(SEED).into());
+    let old = Ratchet::zero(&hash_from_hex(SEED).into());
     match old.previous(&old, 10) {
         Ok(_) => panic!("expected PreviousErr::EqualRatchets, got an iterator instead"),
         Err(e) => match e {
@@ -150,7 +143,7 @@ fn test_ratchet_previous_equal_error() {
 
 #[test]
 fn test_ratchet_previous_older_error() {
-    let old = Ratchet::zero(hash_from_hex(SEED).into());
+    let old = Ratchet::zero(&hash_from_hex(SEED).into());
     let mut recent = old.clone();
     recent.inc();
     match old.previous(&recent, 10) {
@@ -165,7 +158,7 @@ fn test_ratchet_previous_older_error() {
 #[test]
 fn test_ratchet_previous_increments() {
     let discrepancy_budget = 1_000_000;
-    let old = Ratchet::zero(hash_from_hex(SEED).into());
+    let old = Ratchet::zero(&hash_from_hex(SEED).into());
     let increments = [1, 260, 65_600, 131_100];
 
     for inc in increments.into_iter() {
@@ -192,7 +185,7 @@ fn test_ratchet_previous_increments() {
 
 #[test]
 fn test_ratchet_previous_budget() {
-    let old_ratchet = Ratchet::zero(hash_from_hex(SEED).into());
+    let old_ratchet = Ratchet::zero(&hash_from_hex(SEED).into());
     let increments = [(65_600, 65_500), (131_100, 131_000)];
 
     for (inc, budget) in increments.into_iter() {
@@ -214,7 +207,7 @@ fn test_ratchet_previous_budget() {
 
 #[test]
 fn test_ratchet_iterator() {
-    let mut ratchet = Ratchet::zero(hash_from_hex(SEED).into());
+    let mut ratchet = Ratchet::zero(&hash_from_hex(SEED).into());
     let mut via_iterator = ratchet.clone();
 
     ratchet.inc();
@@ -247,20 +240,12 @@ fn test_step_count_regression() {
 }
 
 fn assert_ratchet_equal(expected: &Ratchet, got: &Ratchet) {
-    assert_eq!(expected.large, got.large);
-    assert_eq!(expected.medium, got.medium);
-    assert_eq!(expected.small, got.small);
-    assert_eq!(expected.medium_counter, got.medium_counter);
-    assert_eq!(expected.small_counter, got.small_counter);
+    assert_eq!(format!("{expected:#?}"), format!("{got:#?}"));
 }
 
 macro_rules! prop_assert_ratchet_eq {
     ($expected:expr, $actual:expr) => {
-        prop_assert_eq!($expected.large, $actual.large);
-        prop_assert_eq!($expected.medium, $actual.medium);
-        prop_assert_eq!($expected.small, $actual.small);
-        prop_assert_eq!($expected.medium_counter, $actual.medium_counter);
-        prop_assert_eq!($expected.small_counter, $actual.small_counter);
+        prop_assert_eq!(format!("{:#?}", $expected), format!("{:#?}", $actual));
     };
 }
 
@@ -275,26 +260,14 @@ fn any_jump_size() -> impl Strategy<Value = JumpSize> {
 }
 
 fn any_ratchet() -> impl Strategy<Value = Ratchet> {
-    (any::<[u8; 32]>().no_shrink(), 0..255u8, 0..255u8).prop_map(|(seed, inc_med, inc_small)| {
-        let salt = Salt::from(Hash::from(HASH_PURPOSE_RATCHET_SALT, seed));
-        let medium = Hash::from(HASH_PURPOSE_RATCHET_MEDIUM, seed);
-        let small = Hash::from(HASH_PURPOSE_RATCHET_SMALL, seed);
-
-        Ratchet {
-            salt,
-            large: Hash::from(HASH_PURPOSE_RATCHET_LARGE, seed),
-            medium: Hash::from_chain(HASH_PURPOSE_RATCHET_MEDIUM, medium, inc_med.into()),
-            small: Hash::from_chain(HASH_PURPOSE_RATCHET_SMALL, small, inc_small.into()),
-            medium_counter: inc_med,
-            small_counter: inc_small,
-        }
-    })
+    (any::<[u8; 32]>().no_shrink(), 0..=255u8, 254..=255u8)
+        .prop_map(|(seed, inc_small, inc_med)| Ratchet::from_seed(&seed, inc_small, inc_med))
 }
 
-#[proptest]
+#[proptest(cases = 10_000)]
 fn test_ratchet_add_slow_equals_add_fast(
-    #[strategy(any_ratchet())] mut ratchet: Ratchet,
     #[strategy(0..100_000usize)] jumps: usize,
+    #[strategy(any_ratchet())] mut ratchet: Ratchet,
 ) {
     let slow = &mut ratchet.clone();
     for _ in 0..jumps {
@@ -303,8 +276,7 @@ fn test_ratchet_add_slow_equals_add_fast(
 
     // Fast jump in ~O(log n) steps
     ratchet.inc_by(jumps);
-
-    prop_assert_ratchet_eq!(slow, &ratchet);
+    prop_assert_ratchet_eq!(slow, ratchet);
 }
 
 #[proptest]
