@@ -102,11 +102,11 @@ impl Ratchet {
         let mut ratchet = Self::zero(salt, seed);
 
         for _ in 0..inc_med {
-            ratchet = ratchet.next_medium_epoch().0;
+            ratchet.next_medium_epoch();
         }
 
         for _ in 0..inc_small {
-            ratchet = ratchet.next_small_epoch();
+            ratchet.inc();
         }
 
         ratchet
@@ -122,9 +122,9 @@ impl Ratchet {
     /// let ratchet = Ratchet::new(&mut rand::thread_rng());
     /// let key = ratchet.derive_key("awesome.ly temporal key derivation");
     /// ```
-    pub fn derive_key(&self, purpose: impl AsRef<[u8]>) -> [u8; 32] {
+    pub fn derive_key(&self, domain_separation_info: impl AsRef<[u8]>) -> [u8; 32] {
         let mut hasher = Sha3_256::new();
-        hasher.update(purpose);
+        hasher.update(domain_separation_info);
         hasher.update(self.large);
         hasher.update(self.medium);
         hasher.update(self.small);
@@ -143,9 +143,7 @@ impl Ratchet {
     /// ```
     pub fn inc(&mut self) {
         if self.small_counter == 255 {
-            let (r, j) = self.next_medium_epoch();
-            debug_assert_eq!(j, 1);
-            *self = r;
+            self.next_medium_epoch();
             return;
         }
 
@@ -165,8 +163,22 @@ impl Ratchet {
     /// println!("{:?}", ratchet);
     /// ```
     pub fn inc_by(&mut self, n: usize) {
-        let jumped = inc_by(self, n);
-        *self = jumped;
+        if n == 0 {
+            return;
+        } else if n >= LARGE_EPOCH_LENGTH - self.combined_counter() {
+            // `n` is larger than at least one large epoch jump
+            let jump_count = self.next_large_epoch();
+            self.inc_by(n - jump_count);
+            return;
+        } else if n >= MEDIUM_EPOCH_LENGTH - self.small_counter as usize {
+            // `n` is larger than at least one medium epoch jump
+            let jump_count = self.next_medium_epoch();
+            self.inc_by(n - jump_count);
+            return;
+        }
+
+        self.small = Hash::from_chain(&[], self.small, n);
+        self.small_counter += n as u8;
     }
 
     pub fn compare(&self, other: &Ratchet, max_steps: usize) -> Result<isize, RatchetErr> {
@@ -294,10 +306,12 @@ impl Ratchet {
     /// let mut ratchet = Ratchet::new(&mut rand::thread_rng());
     /// let (r, s) = ratchet.next_large_epoch();
     /// ```
-    pub fn next_large_epoch(&self) -> (Ratchet, usize) {
+    pub fn next_large_epoch(&mut self) -> usize {
         let jump_count = LARGE_EPOCH_LENGTH - self.combined_counter();
 
-        (Ratchet::zero(self.salt, self.large.as_slice()), jump_count)
+        *self = Ratchet::zero(self.salt, self.large.as_slice());
+
+        jump_count
     }
 
     /// Returns the next medium epoch of the ratchet.
@@ -310,42 +324,21 @@ impl Ratchet {
     /// let mut ratchet = Ratchet::new(&mut rand::thread_rng());
     /// let (r, s) = ratchet.next_medium_epoch();
     /// ```
-    pub fn next_medium_epoch(&self) -> (Ratchet, usize) {
+    pub fn next_medium_epoch(&mut self) -> usize {
         if self.medium_counter == 255 {
             return self.next_large_epoch();
         }
 
+        let count_before = self.combined_counter();
+
         let medium_pre = Hash::from(&[], self.medium);
-        let medium = Hash::from(&[], medium_pre);
-        let small = Hash::from(self.salt, medium_pre);
+        self.medium = Hash::from(&[], medium_pre);
+        self.small = Hash::from(self.salt, medium_pre);
 
-        let jumped = Ratchet {
-            salt: self.salt,
-            large: self.large,
-            medium,
-            medium_counter: self.medium_counter + 1,
-            small,
-            small_counter: 0,
-        };
+        self.medium_counter += 1;
+        self.small_counter = 0;
 
-        let jump_count = jumped.combined_counter() - self.combined_counter();
-        (jumped, jump_count)
-    }
-
-    /// Returns the next small epoch of the ratchet.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use skip_ratchet::Ratchet;
-    ///
-    /// let mut ratchet = Ratchet::new(&mut rand::thread_rng());
-    /// let r = ratchet.next_small_epoch();
-    /// ```
-    pub fn next_small_epoch(&self) -> Ratchet {
-        let mut ratchet = self.clone();
-        ratchet.inc();
-        ratchet
+        self.combined_counter() - count_before
     }
 }
 
@@ -390,8 +383,7 @@ impl PreviousIterator {
         let mut total_jumps = LARGE_EPOCH_LENGTH;
 
         while old_ratchet_large.large != recent.large {
-            let (ratchet, jump_count) = old_ratchet_large.next_large_epoch();
-            old_ratchet_large = ratchet;
+            let jump_count = old_ratchet_large.next_large_epoch();
             total_jumps += jump_count;
             if total_jumps > rounded_budget {
                 return Err(PreviousErr::BudgetExceeded);
@@ -467,7 +459,7 @@ impl Iterator for PreviousIterator {
                 while !(old_ratchet_medium.medium == self.recent.medium
                     && old_ratchet_medium.large == self.recent.large)
                 {
-                    (old_ratchet_medium, _) = old_ratchet_medium.next_medium_epoch();
+                    old_ratchet_medium.next_medium_epoch();
                     self.medium_skips.push(old_ratchet_medium.clone());
                 }
 
@@ -480,7 +472,7 @@ impl Iterator for PreviousIterator {
                     && old_ratchet_small.medium == self.recent.medium)
                 {
                     self.small_skips.push(old_ratchet_small.clone());
-                    old_ratchet_small = old_ratchet_small.next_small_epoch();
+                    old_ratchet_small.inc();
                 }
 
                 continue;
@@ -519,25 +511,4 @@ impl Display for Ratchet {
             .field("medium_counter", &self.medium_counter)
             .finish()
     }
-}
-
-pub(crate) fn inc_by(ratchet: &Ratchet, n: usize) -> Ratchet {
-    if n == 0 {
-        return ratchet.clone();
-    } else if n >= LARGE_EPOCH_LENGTH - ratchet.combined_counter() {
-        // `n` is larger than at least one large epoch jump
-        let (jumped, jump_count) = ratchet.next_large_epoch();
-        return inc_by(&jumped, n - jump_count);
-    } else if n >= MEDIUM_EPOCH_LENGTH - ratchet.small_counter as usize {
-        // `n` is larger than at least one medium epoch jump
-        let (jumped, jump_count) = ratchet.next_medium_epoch();
-        return inc_by(&jumped, n - jump_count);
-    }
-
-    let mut ratchet = ratchet.clone();
-
-    ratchet.small = Hash::from_chain(&[], ratchet.small, n);
-    ratchet.small_counter += n as u8;
-
-    ratchet
 }

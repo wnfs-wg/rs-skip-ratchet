@@ -34,12 +34,18 @@ impl JumpSize {
     }
 
     fn inc_ratchet(&self, ratchet: &Ratchet) -> Ratchet {
+        let mut cloned = ratchet.clone();
         match self {
-            Self::Zero => ratchet.clone(),
-            Self::Small => ratchet.next_small_epoch(),
-            Self::Medium => ratchet.next_medium_epoch().0,
-            Self::Large => ratchet.next_large_epoch().0,
-        }
+            Self::Zero => {}
+            Self::Small => cloned.inc(),
+            Self::Medium => {
+                cloned.next_medium_epoch();
+            }
+            Self::Large => {
+                cloned.next_large_epoch();
+            }
+        };
+        cloned
     }
 }
 

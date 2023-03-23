@@ -32,7 +32,8 @@ fn test_ratchet_add_256() {
     }
 
     // fast jump 256 values in one shot
-    let (ref fast, _) = Ratchet::zero(salt(), &seed()).next_medium_epoch();
+    let fast = &mut Ratchet::zero(salt(), &seed());
+    fast.next_medium_epoch();
     assert_ratchet_equal(slow, fast);
 }
 
