@@ -99,7 +99,7 @@ impl Ratchet {
     /// Creates a new ratchet with given seed with given counters.
     pub fn from_seed(seed: &[u8; 32], inc_small: u8, inc_med: u8) -> Self {
         let salt = Salt::from(Hash::from("Skip Ratchet Slt", seed));
-        let mut ratchet = Self::zero(salt, seed);
+        let mut ratchet = Self::zero(salt, Hash::from("Skip Ratchet Lrg", seed).as_slice());
 
         for _ in 0..inc_med {
             ratchet.next_medium_epoch();
@@ -280,7 +280,10 @@ impl Ratchet {
         PreviousIterator::new(old, self, discrepancy_budget)
     }
 
-    /// Get the entire hash count of the ratchet.
+    /// Returns the number of steps away from "zero" this ratchet is.
+    /// This is a number between 0 and 65535. If stepping the ratchet
+    /// forwards results in the next large epoch to be loaded, this
+    /// counter resets back to 0.
     ///
     /// # Examples
     ///
@@ -288,15 +291,15 @@ impl Ratchet {
     /// use skip_ratchet::Ratchet;
     ///
     /// let mut ratchet = Ratchet::new(&mut rand::thread_rng());
+    /// println!("{}", ratchet.combined_counter());
     /// ratchet.inc_by(10);
-    ///
-    /// println!("{:?}", ratchet.combined_counter());
+    /// println!("{}", ratchet.combined_counter());
     /// ```
     pub fn combined_counter(&self) -> usize {
         (MEDIUM_EPOCH_LENGTH * self.medium_counter as usize) + self.small_counter as usize
     }
 
-    /// Returns the next large epoch of the ratchet.
+    /// Skips the ratchet to the next large epoch.
     ///
     /// # Examples
     ///
@@ -304,7 +307,7 @@ impl Ratchet {
     /// use skip_ratchet::Ratchet;
     ///
     /// let mut ratchet = Ratchet::new(&mut rand::thread_rng());
-    /// let (r, s) = ratchet.next_large_epoch();
+    /// ratchet.next_large_epoch();
     /// ```
     pub fn next_large_epoch(&mut self) -> usize {
         let jump_count = LARGE_EPOCH_LENGTH - self.combined_counter();
@@ -314,7 +317,7 @@ impl Ratchet {
         jump_count
     }
 
-    /// Returns the next medium epoch of the ratchet.
+    /// Skips the ratchet to the next medium epoch.
     ///
     /// # Examples
     ///
@@ -322,7 +325,7 @@ impl Ratchet {
     /// use skip_ratchet::Ratchet;
     ///
     /// let mut ratchet = Ratchet::new(&mut rand::thread_rng());
-    /// let (r, s) = ratchet.next_medium_epoch();
+    /// ratchet.next_medium_epoch();
     /// ```
     pub fn next_medium_epoch(&mut self) -> usize {
         if self.medium_counter == 255 {
