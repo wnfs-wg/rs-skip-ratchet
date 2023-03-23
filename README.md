@@ -63,7 +63,7 @@ let mut recent_ratchet = old_ratchet.clone();
 recent_ratchet.inc_by(10);
 
 for revision in recent_ratchet.previous(&old_ratchet, 10).unwrap() {
-    println!("{:?}", String::from(&revision));
+    println!("{:#?}", revision);
 }
 ```
 
