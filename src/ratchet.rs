@@ -318,7 +318,7 @@ impl Ratchet {
         }
 
         let medium = Hash::from(&[], self.medium);
-        let small = Hash::from(self.salt, self.medium);
+        let small = Hash::from(self.salt, medium);
 
         let jumped = Ratchet {
             salt: self.salt,

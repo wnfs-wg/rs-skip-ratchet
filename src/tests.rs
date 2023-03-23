@@ -264,7 +264,7 @@ fn any_ratchet() -> impl Strategy<Value = Ratchet> {
         .prop_map(|(seed, inc_small, inc_med)| Ratchet::from_seed(&seed, inc_small, inc_med))
 }
 
-#[proptest(cases = 10_000)]
+#[proptest]
 fn test_ratchet_add_slow_equals_add_fast(
     #[strategy(0..100_000usize)] jumps: usize,
     #[strategy(any_ratchet())] mut ratchet: Ratchet,
