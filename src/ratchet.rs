@@ -81,9 +81,9 @@ impl Ratchet {
 
     /// Creates a new ratchet from a seed with zero counters.
     pub fn zero(salt: Salt, large_pre: &[u8; 32]) -> Self {
-        let large = Hash::from(&[], large_pre);
+        let large = Hash::from([], large_pre);
         let medium_pre = Hash::from(salt, large_pre);
-        let medium = Hash::from(&[], medium_pre);
+        let medium = Hash::from([], medium_pre);
         let small = Hash::from(salt, medium_pre);
 
         Ratchet {
@@ -147,7 +147,7 @@ impl Ratchet {
             return;
         }
 
-        self.small = Hash::from(&[], self.small);
+        self.small = Hash::from([], self.small);
         self.small_counter += 1;
     }
 
@@ -177,7 +177,7 @@ impl Ratchet {
             return;
         }
 
-        self.small = Hash::from_chain(&[], self.small, n);
+        self.small = Hash::from_chain([], self.small, n);
         self.small_counter += n as u8;
     }
 
@@ -206,8 +206,8 @@ impl Ratchet {
         // Since the two ratches might just be generated from a totally different setup, we can never _really_ know which one is the bigger one.
         // They might be unrelated.
         while steps_left > 0 {
-            self_large = Hash::from(&[], self_large);
-            other_large = Hash::from(&[], other_large);
+            self_large = Hash::from([], self_large);
+            other_large = Hash::from([], other_large);
             steps += 1;
 
             if other_large == self.large {
@@ -331,8 +331,8 @@ impl Ratchet {
 
         let count_before = self.combined_counter();
 
-        let medium_pre = Hash::from(&[], self.medium);
-        self.medium = Hash::from(&[], medium_pre);
+        let medium_pre = Hash::from([], self.medium);
+        self.medium = Hash::from([], medium_pre);
         self.small = Hash::from(self.salt, medium_pre);
 
         self.medium_counter += 1;
