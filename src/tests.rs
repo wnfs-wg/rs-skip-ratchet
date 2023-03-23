@@ -1,6 +1,6 @@
 use crate::{
-    constants::LARGE_EPOCH_LENGTH, hash::Hash, ratchet::PreviousIterator, seek::JumpSize,
-    PreviousErr, Ratchet, RatchetSeeker,
+    constants::LARGE_EPOCH_LENGTH, hash::Hash, ratchet::PreviousIterator, salt::Salt,
+    seek::JumpSize, PreviousErr, Ratchet, RatchetSeeker,
 };
 use hex::FromHex;
 use proptest::prelude::*;
@@ -11,25 +11,34 @@ fn hash_from_hex(s: &str) -> Hash {
     Hash::from_raw(<[u8; 32]>::from_hex(s).unwrap())
 }
 
-const SEED: &str = "600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33";
+fn salt_from_hex(s: &str) -> Salt {
+    Salt::from_raw(<[u8; 32]>::from_hex(s).unwrap())
+}
+
+fn salt() -> Salt {
+    salt_from_hex("eafe7de965c8a149d6ad0e1a4bd28c79db7d408f6655b1570e9c16d4a96bfc5e")
+}
+
+fn seed() -> [u8; 32] {
+    hash_from_hex("600b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33").into()
+}
 
 #[test]
 fn test_ratchet_add_256() {
-    let seed = hash_from_hex(SEED);
     // manually advance ratchet 256 (2 ^ 8) times
-    let slow = &mut Ratchet::zero(&seed.into());
+    let slow = &mut Ratchet::zero(salt(), &seed());
     for _ in 0..256 {
         slow.inc();
     }
 
     // fast jump 256 values in one shot
-    let (ref fast, _) = Ratchet::zero(&seed.into()).next_medium_epoch();
+    let (ref fast, _) = Ratchet::zero(salt(), &seed()).next_medium_epoch();
     assert_ratchet_equal(slow, fast);
 }
 
 #[test]
 fn test_ratchet_compare() {
-    let one = &mut Ratchet::zero(&hash_from_hex(SEED).into());
+    let one = &mut Ratchet::zero(salt(), &seed());
 
     let two = &mut one.clone();
     two.inc();
@@ -105,6 +114,7 @@ fn test_ratchet_compare() {
     }
 
     let unrelated = Ratchet::zero(
+        salt(),
         &hash_from_hex("500b56e66b7d12e08fd58544d7c811db0063d7aa467a1f6be39990fed0ca5b33").into(),
     );
 
@@ -114,9 +124,10 @@ fn test_ratchet_compare() {
 
 #[test]
 fn test_ratchet_equal() {
-    let a = Ratchet::zero(&hash_from_hex(SEED).into());
-    let b = Ratchet::zero(&hash_from_hex(SEED).into());
+    let a = Ratchet::zero(salt(), &seed());
+    let b = Ratchet::zero(salt(), &seed());
     let c = Ratchet::zero(
+        salt(),
         &hash_from_hex("0000000000000000000000000000000000000000000000000000000000000000").into(),
     );
 
@@ -131,7 +142,7 @@ fn test_ratchet_equal() {
 
 #[test]
 fn test_ratchet_previous_equal_error() {
-    let old = Ratchet::zero(&hash_from_hex(SEED).into());
+    let old = Ratchet::zero(salt(), &seed());
     match old.previous(&old, 10) {
         Ok(_) => panic!("expected PreviousErr::EqualRatchets, got an iterator instead"),
         Err(e) => match e {
@@ -143,7 +154,7 @@ fn test_ratchet_previous_equal_error() {
 
 #[test]
 fn test_ratchet_previous_older_error() {
-    let old = Ratchet::zero(&hash_from_hex(SEED).into());
+    let old = Ratchet::zero(salt(), &seed());
     let mut recent = old.clone();
     recent.inc();
     match old.previous(&recent, 10) {
@@ -158,7 +169,7 @@ fn test_ratchet_previous_older_error() {
 #[test]
 fn test_ratchet_previous_increments() {
     let discrepancy_budget = 1_000_000;
-    let old = Ratchet::zero(&hash_from_hex(SEED).into());
+    let old = Ratchet::zero(salt(), &seed());
     let increments = [1, 260, 65_600, 131_100];
 
     for inc in increments.into_iter() {
@@ -185,7 +196,7 @@ fn test_ratchet_previous_increments() {
 
 #[test]
 fn test_ratchet_previous_budget() {
-    let old_ratchet = Ratchet::zero(&hash_from_hex(SEED).into());
+    let old_ratchet = Ratchet::zero(salt(), &seed());
     let increments = [(65_600, 65_500), (131_100, 131_000)];
 
     for (inc, budget) in increments.into_iter() {
@@ -207,7 +218,7 @@ fn test_ratchet_previous_budget() {
 
 #[test]
 fn test_ratchet_iterator() {
-    let mut ratchet = Ratchet::zero(&hash_from_hex(SEED).into());
+    let mut ratchet = Ratchet::zero(salt(), &seed());
     let mut via_iterator = ratchet.clone();
 
     ratchet.inc();

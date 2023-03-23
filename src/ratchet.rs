@@ -80,25 +80,36 @@ impl Ratchet {
     }
 
     /// Creates a new ratchet from a seed with zero counters.
-    pub fn zero(seed: &[u8; 32]) -> Self {
-        Self::from_seed(&seed, 0, 0)
+    pub fn zero(salt: Salt, large_pre: &[u8; 32]) -> Self {
+        let large = Hash::from(&[], large_pre);
+        let medium_pre = Hash::from(salt, large_pre);
+        let medium = Hash::from(&[], medium_pre);
+        let small = Hash::from(salt, medium_pre);
+
+        Ratchet {
+            salt,
+            large,
+            medium,
+            medium_counter: 0,
+            small,
+            small_counter: 0,
+        }
     }
 
     /// Creates a new ratchet with given seed with given counters.
     pub fn from_seed(seed: &[u8; 32], inc_small: u8, inc_med: u8) -> Self {
         let salt = Salt::from(Hash::from("Skip Ratchet Slt", seed));
-        let large = Hash::from("Skip Ratchet Lrg", seed);
-        let medium = Hash::from("Skip Ratchet Med", seed);
-        let small = Hash::from("Skip Ratchet Sml", seed);
+        let mut ratchet = Self::zero(salt, seed);
 
-        Ratchet {
-            salt,
-            large,
-            medium: Hash::from_chain(&[], medium, inc_med.into()),
-            small: Hash::from_chain(&[], small, inc_small.into()),
-            medium_counter: inc_med,
-            small_counter: inc_small,
+        for _ in 0..inc_med {
+            ratchet = ratchet.next_medium_epoch().0;
         }
+
+        for _ in 0..inc_small {
+            ratchet = ratchet.next_small_epoch();
+        }
+
+        ratchet
     }
 
     /// Derives a new key from the ratchet.
@@ -286,21 +297,7 @@ impl Ratchet {
     pub fn next_large_epoch(&self) -> (Ratchet, usize) {
         let jump_count = LARGE_EPOCH_LENGTH - self.combined_counter();
 
-        let large = Hash::from(&[], self.large);
-        let medium_pre = Hash::from(self.salt, self.large);
-        let medium = Hash::from(&[], medium_pre);
-        let small = Hash::from(self.salt, medium_pre);
-
-        let jumped = Ratchet {
-            salt: self.salt,
-            large,
-            medium,
-            medium_counter: 0,
-            small,
-            small_counter: 0,
-        };
-
-        (jumped, jump_count)
+        (Ratchet::zero(self.salt, self.large.as_slice()), jump_count)
     }
 
     /// Returns the next medium epoch of the ratchet.

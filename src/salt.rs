@@ -12,6 +12,10 @@ impl Salt {
     pub fn random(rng: &mut impl RngCore) -> Self {
         Self(rng.gen::<[u8; 32]>())
     }
+
+    pub fn from_raw(raw: [u8; 32]) -> Self {
+        Self(raw)
+    }
 }
 
 impl From<Hash> for Salt {
