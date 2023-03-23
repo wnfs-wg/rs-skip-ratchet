@@ -287,8 +287,9 @@ impl Ratchet {
         let jump_count = LARGE_EPOCH_LENGTH - self.combined_counter();
 
         let large = Hash::from(&[], self.large);
-        let medium = Hash::from(self.salt, self.large);
-        let small = Hash::from(self.salt, medium);
+        let medium_pre = Hash::from(self.salt, self.large);
+        let medium = Hash::from(&[], medium_pre);
+        let small = Hash::from(self.salt, medium_pre);
 
         let jumped = Ratchet {
             salt: self.salt,
@@ -317,8 +318,9 @@ impl Ratchet {
             return self.next_large_epoch();
         }
 
-        let medium = Hash::from(&[], self.medium);
-        let small = Hash::from(self.salt, medium);
+        let medium_pre = Hash::from(&[], self.medium);
+        let medium = Hash::from(&[], medium_pre);
+        let small = Hash::from(self.salt, medium_pre);
 
         let jumped = Ratchet {
             salt: self.salt,
