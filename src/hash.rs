@@ -14,20 +14,20 @@ pub struct Hash(
 
 impl Hash {
     /// Creates a new Hash from last hash of `n` consecutive hashes of an item.
-    /// Applies the purpose at each invocation.
-    pub fn from_chain(purpose: impl AsRef<[u8]>, value: impl AsRef<[u8]>, n: usize) -> Self {
-        let mut hash = Self::from(&purpose, value);
+    /// Adds in the prefix bytes for each hash.
+    pub fn from_chain(prefix: impl AsRef<[u8]>, value: impl AsRef<[u8]>, n: usize) -> Self {
+        let mut hash = Self::from(&prefix, value);
         for _ in 1..n {
-            hash = Self::from(&purpose, hash);
+            hash = Self::from(&prefix, hash);
         }
 
         hash
     }
 
-    /// Creates a keyed Hash by hashing the value with given purpose.
-    pub fn from(purpose: impl AsRef<[u8]>, value: impl AsRef<[u8]>) -> Self {
+    /// Creates a keyed Hash by hashing the value with given prefix.
+    pub fn from(prefix: impl AsRef<[u8]>, value: impl AsRef<[u8]>) -> Self {
         let mut hasher = Sha3_256::new();
-        hasher.update(purpose.as_ref());
+        hasher.update(prefix.as_ref());
         hasher.update(value.as_ref());
         Self(hasher.finalize().into())
     }
@@ -177,17 +177,17 @@ mod hash_tests {
 
     #[test]
     fn from_n_hashes_n_times() {
-        let purpose = "test Hash::from_chain";
+        let prefix = "test Hash::from_chain";
         let hash_1 = {
-            let h = Hash::from(purpose, b"James Cameron");
-            let h = Hash::from(purpose, h);
-            let h = Hash::from(purpose, h);
-            let h = Hash::from(purpose, h);
+            let h = Hash::from(prefix, b"James Cameron");
+            let h = Hash::from(prefix, h);
+            let h = Hash::from(prefix, h);
+            let h = Hash::from(prefix, h);
 
-            Hash::from(purpose, h)
+            Hash::from(prefix, h)
         };
 
-        let hash_2 = Hash::from_chain(purpose, b"James Cameron", 5);
+        let hash_2 = Hash::from_chain(prefix, b"James Cameron", 5);
 
         assert_eq!(hash_1, hash_2);
     }
