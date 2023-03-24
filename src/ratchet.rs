@@ -4,7 +4,6 @@ use crate::{
     PreviousErr, RatchetErr,
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use rand::Rng;
 use rand_core::CryptoRngCore;
 use std::fmt::{self, Display, Formatter};
 
@@ -71,12 +70,15 @@ impl Ratchet {
     /// ```
     pub fn from_rng(rng: &mut impl CryptoRngCore) -> Self {
         // 32 bytes for the seed, plus two extra bytes to randomize small & medium starts
-        let seed = Hash::from_raw(rng.gen::<[u8; 32]>());
+        let mut seed_raw = [0u8; 32];
+        rng.fill_bytes(&mut seed_raw);
+        let seed = Hash::from_raw(seed_raw);
         let medium = Hash::from(&!seed);
         let small = Hash::from(&!medium);
 
-        let inc_med = rng.gen::<u8>();
-        let inc_small = rng.gen::<u8>();
+        let mut incs = [0u8; 2];
+        rng.fill_bytes(&mut incs);
+        let [inc_med, inc_small] = incs;
 
         Ratchet {
             large: Hash::from(&seed),
