@@ -118,17 +118,17 @@ impl Ratchet {
     ///
     /// ```
     /// use skip_ratchet::Ratchet;
+    /// use sha3::Digest;
     ///
     /// let ratchet = Ratchet::new(&mut rand::thread_rng());
-    /// let key = ratchet.derive_key("awesome.ly temporal key derivation");
+    /// let key: [u8; 32] = ratchet.derive_key("awesome.ly temporal key derivation").finalize().into();
     /// ```
-    pub fn derive_key(&self, domain_separation_info: impl AsRef<[u8]>) -> [u8; 32] {
-        let mut hasher = Sha3_256::new();
-        hasher.update(domain_separation_info);
-        hasher.update(self.large);
-        hasher.update(self.medium);
-        hasher.update(self.small);
-        hasher.finalize().into()
+    pub fn derive_key(&self, domain_separation_info: impl AsRef<[u8]>) -> Sha3_256 {
+        Sha3_256::new()
+            .chain_update(domain_separation_info)
+            .chain_update(self.large)
+            .chain_update(self.medium)
+            .chain_update(self.small)
     }
 
     /// Moves the ratchet forward by one step.
