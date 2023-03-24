@@ -1,5 +1,7 @@
 use crate::{
-    constants::{LARGE_EPOCH_LENGTH, MEDIUM_EPOCH_LENGTH},
+    constants::{
+        DOMAIN_SEP_STR_LARGE, DOMAIN_SEP_STR_SALT, LARGE_EPOCH_LENGTH, MEDIUM_EPOCH_LENGTH,
+    },
     hash::Hash,
     salt::Salt,
     PreviousErr, RatchetErr,
@@ -101,8 +103,9 @@ impl Ratchet {
 
     /// Creates a new ratchet with given seed with given counters.
     pub fn from_seed(seed: &[u8; 32], inc_small: u8, inc_med: u8) -> Self {
-        let salt = Hash::from("Skip Ratchet Slt", seed).into();
-        let mut ratchet = Self::zero(salt, Hash::from("Skip Ratchet Lrg", seed).as_slice());
+        let salt = Hash::from(DOMAIN_SEP_STR_SALT, seed).into();
+        let large_pre = Hash::from(DOMAIN_SEP_STR_LARGE, seed);
+        let mut ratchet = Self::zero(salt, large_pre.as_slice());
 
         for _ in 0..inc_med {
             ratchet.next_medium_epoch();
