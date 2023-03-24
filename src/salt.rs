@@ -1,16 +1,18 @@
-use rand::{Rng, RngCore};
-use std::fmt::Debug;
-
 use crate::hash::Hash;
+use rand_core::CryptoRngCore;
+use std::fmt::Debug;
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Salt(
     #[cfg_attr(feature = "serde", serde(with = "crate::serde_byte_array"))] pub [u8; 32],
 );
+
 impl Salt {
-    pub fn random(rng: &mut impl RngCore) -> Self {
-        Self(rng.gen::<[u8; 32]>())
+    pub fn from_rng(rng: &mut impl CryptoRngCore) -> Self {
+        let mut salt = [0u8; 32];
+        rng.fill_bytes(&mut salt);
+        Self(salt)
     }
 
     pub fn from_raw(raw: [u8; 32]) -> Self {

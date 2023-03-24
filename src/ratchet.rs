@@ -4,7 +4,7 @@ use crate::{
     salt::Salt,
     PreviousErr, RatchetErr,
 };
-use rand::{Rng, RngCore};
+use rand_core::CryptoRngCore;
 use sha3::{Digest, Sha3_256};
 use std::fmt::{self, Display, Formatter};
 
@@ -17,9 +17,10 @@ use std::fmt::{self, Display, Formatter};
 ///
 /// ```
 /// use skip_ratchet::Ratchet;
+/// use sha3::Digest;
 ///
-/// let ratchet = Ratchet::new(&mut rand::thread_rng());
-/// let key = ratchet.derive_key("awesome.ly key derivation");
+/// let ratchet = Ratchet::from_rng(&mut rand::thread_rng());
+/// let key: [u8; 32] = ratchet.derive_key("awesome.ly key derivation").finalize().into();
 /// ```
 ///
 /// [1]: https://github.com/fission-suite/skip-ratchet-paper/blob/main/spiral-ratchet.pdf
@@ -42,7 +43,7 @@ pub struct Ratchet {
 /// ```
 /// use skip_ratchet::Ratchet;
 ///
-/// let mut old_ratchet = Ratchet::new(&mut rand::thread_rng());
+/// let mut old_ratchet = Ratchet::from_rng(&mut rand::thread_rng());
 /// old_ratchet.inc_by(10);
 ///
 /// let mut recent_ratchet = old_ratchet.clone();
@@ -61,20 +62,22 @@ pub struct PreviousIterator {
 }
 
 impl Ratchet {
-    /// Creates a new ratchet with a randomly generated seed.
+    /// Creates a randomly-generated Skip Ratchet.
     ///
     /// # Examples
     ///
     /// ```
     /// use skip_ratchet::Ratchet;
     ///
-    /// let ratchet = Ratchet::new(&mut rand::thread_rng());
+    /// let ratchet = Ratchet::from_rng(&mut rand::thread_rng());
     /// ```
-    pub fn new(rng: &mut impl RngCore) -> Self {
+    pub fn from_rng(rng: &mut impl CryptoRngCore) -> Self {
         // 32 bytes for the seed, plus two extra bytes to randomize small & medium starts
-        let seed = rng.gen::<[u8; 32]>();
-        let inc_small = rng.gen::<u8>();
-        let inc_med = rng.gen::<u8>();
+        let mut seed = [0u8; 32];
+        let mut incs = [0u8; 2];
+        rng.fill_bytes(&mut seed);
+        rng.fill_bytes(&mut incs);
+        let [inc_med, inc_small] = incs;
 
         Self::from_seed(&seed, inc_small, inc_med)
     }
@@ -120,7 +123,7 @@ impl Ratchet {
     /// use skip_ratchet::Ratchet;
     /// use sha3::Digest;
     ///
-    /// let ratchet = Ratchet::new(&mut rand::thread_rng());
+    /// let ratchet = Ratchet::from_rng(&mut rand::thread_rng());
     /// let key: [u8; 32] = ratchet.derive_key("awesome.ly temporal key derivation").finalize().into();
     /// ```
     pub fn derive_key(&self, domain_separation_info: impl AsRef<[u8]>) -> Sha3_256 {
@@ -138,7 +141,7 @@ impl Ratchet {
     /// ```
     /// use skip_ratchet::Ratchet;
     ///
-    /// let mut ratchet = Ratchet::new(&mut rand::thread_rng());
+    /// let mut ratchet = Ratchet::from_rng(&mut rand::thread_rng());
     /// ratchet.inc();
     /// ```
     pub fn inc(&mut self) {
@@ -157,7 +160,7 @@ impl Ratchet {
     /// ```
     /// use skip_ratchet::Ratchet;
     ///
-    /// let mut ratchet = Ratchet::new(&mut rand::thread_rng());
+    /// let mut ratchet = Ratchet::from_rng(&mut rand::thread_rng());
     /// ratchet.inc_by(3);
     ///
     /// println!("{:?}", ratchet);
@@ -235,7 +238,7 @@ impl Ratchet {
     /// ```
     /// use skip_ratchet::Ratchet;
     ///
-    /// let mut ratchet1 = Ratchet::new(&mut rand::thread_rng());
+    /// let mut ratchet1 = Ratchet::from_rng(&mut rand::thread_rng());
     /// ratchet1.inc();
     ///
     /// let mut ratchet2 = ratchet1.clone();
@@ -256,7 +259,7 @@ impl Ratchet {
     /// ```
     /// use skip_ratchet::Ratchet;
     ///
-    /// let mut old_ratchet = Ratchet::new(&mut rand::thread_rng());
+    /// let mut old_ratchet = Ratchet::from_rng(&mut rand::thread_rng());
     /// old_ratchet.inc_by(10);
     ///
     /// let mut recent_ratchet = old_ratchet.clone();
@@ -290,7 +293,7 @@ impl Ratchet {
     /// ```
     /// use skip_ratchet::Ratchet;
     ///
-    /// let mut ratchet = Ratchet::new(&mut rand::thread_rng());
+    /// let mut ratchet = Ratchet::from_rng(&mut rand::thread_rng());
     /// println!("{}", ratchet.combined_counter());
     /// ratchet.inc_by(10);
     /// println!("{}", ratchet.combined_counter());
@@ -306,7 +309,7 @@ impl Ratchet {
     /// ```
     /// use skip_ratchet::Ratchet;
     ///
-    /// let mut ratchet = Ratchet::new(&mut rand::thread_rng());
+    /// let mut ratchet = Ratchet::from_rng(&mut rand::thread_rng());
     /// ratchet.next_large_epoch();
     /// ```
     pub fn next_large_epoch(&mut self) -> usize {
@@ -324,7 +327,7 @@ impl Ratchet {
     /// ```
     /// use skip_ratchet::Ratchet;
     ///
-    /// let mut ratchet = Ratchet::new(&mut rand::thread_rng());
+    /// let mut ratchet = Ratchet::from_rng(&mut rand::thread_rng());
     /// ratchet.next_medium_epoch();
     /// ```
     pub fn next_medium_epoch(&mut self) -> usize {
@@ -354,7 +357,7 @@ impl PreviousIterator {
     /// ```
     /// use skip_ratchet::{Ratchet, ratchet::PreviousIterator};
     ///
-    /// let old_ratchet = Ratchet::new(&mut rand::thread_rng());
+    /// let old_ratchet = Ratchet::from_rng(&mut rand::thread_rng());
     ///
     /// let mut new_ratchet = old_ratchet.clone();
     /// new_ratchet.inc_by(100_000);
@@ -404,7 +407,7 @@ impl PreviousIterator {
     /// ```
     /// use skip_ratchet::{Ratchet, ratchet::PreviousIterator};
     ///
-    /// let old_ratchet = Ratchet::new(&mut rand::thread_rng());
+    /// let old_ratchet = Ratchet::from_rng(&mut rand::thread_rng());
     /// let mut new_ratchet = old_ratchet.clone();
     /// new_ratchet.inc_by(100_000);
     ///

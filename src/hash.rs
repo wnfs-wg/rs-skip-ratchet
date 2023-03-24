@@ -1,4 +1,3 @@
-use rand::{Rng, RngCore};
 use sha3::{Digest, Sha3_256};
 use std::{
     fmt::Debug,
@@ -30,11 +29,6 @@ impl Hash {
         hasher.update(prefix.as_ref());
         hasher.update(value.as_ref());
         Self(hasher.finalize().into())
-    }
-
-    /// Creates a random Hash.
-    pub fn random(rng: &mut impl RngCore) -> Self {
-        Self::from_raw(rng.gen::<[u8; 32]>())
     }
 
     /// Creates a new Hash from a raw byte array.
