@@ -4,7 +4,8 @@ use crate::{
     PreviousErr, RatchetErr,
 };
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use rand::{Rng, RngCore};
+use rand::Rng;
+use rand_core::CryptoRngCore;
 use std::fmt::{self, Display, Formatter};
 
 /// A (Skip) `Ratchet` is a data structure for deriving keys that maintain backward secrecy.
@@ -59,7 +60,7 @@ pub struct PreviousIterator {
 }
 
 impl Ratchet {
-    /// Creates a new ratchet with a randomly generated seed.
+    /// Creates a randomly-generated Skip Ratchet.
     ///
     /// # Examples
     ///
@@ -68,7 +69,7 @@ impl Ratchet {
     ///
     /// let ratchet = Ratchet::new(&mut rand::thread_rng());
     /// ```
-    pub fn new(rng: &mut impl RngCore) -> Self {
+    pub fn from_rng(rng: &mut impl CryptoRngCore) -> Self {
         // 32 bytes for the seed, plus two extra bytes to randomize small & medium starts
         let seed = Hash::from_raw(rng.gen::<[u8; 32]>());
         let medium = Hash::from(&!seed);
