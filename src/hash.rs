@@ -7,7 +7,9 @@ use std::{
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Hash(pub [u8; 32]);
+pub struct Hash(
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde_byte_array"))] pub [u8; 32],
+);
 
 impl Hash {
     /// Creates a new Hash from last hash of `n` consecutive hashes of an item.
