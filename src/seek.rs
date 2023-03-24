@@ -132,3 +132,91 @@ impl RatchetSeeker {
         }
     }
 }
+
+#[cfg(test)]
+mod proptests {
+    use crate::{
+        prop_assert_ratchet_eq,
+        seek::JumpSize,
+        test_utils::{any_jump_size, any_ratchet},
+        Ratchet, RatchetSeeker,
+    };
+    use proptest::prelude::*;
+    use test_strategy::proptest;
+
+    #[proptest]
+    fn prop_ratchet_seek_finds(
+        #[strategy(any_ratchet())] initial: Ratchet,
+        #[strategy(0..10_000_000usize)] jump: usize,
+        #[strategy(any_jump_size())] initial_jump_size: JumpSize,
+    ) {
+        let goal = {
+            let mut goal = initial.clone();
+            goal.inc_by(jump);
+            goal
+        };
+
+        let mut seeker = RatchetSeeker::new(initial, initial_jump_size);
+        let mut iterations = 0;
+        loop {
+            let ord = seeker.current().compare(&goal, jump).unwrap().cmp(&0);
+            if !seeker.step(ord) {
+                break;
+            }
+            iterations += 1;
+            // Seeking should never take much more than the ratchet is from it's goal.
+            if iterations > jump {
+                panic!("Infinite loop detected.")
+            }
+        }
+        prop_assert_ratchet_eq!(&goal, seeker.current());
+    }
+
+    #[proptest]
+    fn prop_ratchet_seek_finds_zero(
+        #[strategy(any_ratchet())] ratchet: Ratchet,
+        #[strategy(any_jump_size())] initial_jump_size: JumpSize,
+    ) {
+        let mut seeker = RatchetSeeker::new(ratchet.clone(), initial_jump_size);
+
+        loop {
+            if !seeker.step(std::cmp::Ordering::Greater) {
+                break;
+            }
+        }
+
+        prop_assert_ratchet_eq!(&ratchet, seeker.current());
+    }
+
+    #[proptest]
+    fn prop_ratchet_seek_finds_only_greater_and_less(
+        #[strategy(any_ratchet())] initial: Ratchet,
+        #[strategy(0..10_000_000usize)] jump: usize,
+        #[strategy(any_jump_size())] initial_jump_size: JumpSize,
+    ) {
+        let goal = {
+            let mut goal = initial.clone();
+            goal.inc_by(jump);
+            goal
+        };
+
+        let mut seeker = RatchetSeeker::new(initial, initial_jump_size);
+        let mut iterations = 0;
+        loop {
+            // should give the same result
+            let ord = match seeker.current().compare(&goal, jump).unwrap().cmp(&0) {
+                std::cmp::Ordering::Equal => std::cmp::Ordering::Less,
+                o => o,
+            };
+            if !seeker.step(ord) {
+                break;
+            }
+            iterations += 1;
+            // Seeking should never take much more than the ratchet is from it's goal.
+            if iterations > jump {
+                panic!("Infinite loop detected.")
+            }
+        }
+        prop_assert_ratchet_eq!(&goal, seeker.current());
+    }
+}

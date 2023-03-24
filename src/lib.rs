@@ -8,7 +8,7 @@ pub mod seek;
 mod serde_byte_array;
 
 #[cfg(test)]
-mod tests;
+mod test_utils;
 
 pub use errors::*;
 pub use ratchet::Ratchet;
