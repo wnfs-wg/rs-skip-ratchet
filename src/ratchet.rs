@@ -170,9 +170,6 @@ impl Ratchet {
         let self_counter = self.combined_counter() as isize;
         let other_counter = other.combined_counter() as isize;
         if self.large == other.large {
-            if self_counter == other_counter {
-                return Ok(0);
-            }
             return Ok(self_counter - other_counter);
         }
 
@@ -182,28 +179,32 @@ impl Ratchet {
         let mut self_large = self.large;
         let mut other_large = other.large;
         let mut steps = 0;
-        let mut steps_left = max_steps;
 
         // Since the two ratches might just be generated from a totally different setup, we can never _really_ know which one is the bigger one.
         // They might be unrelated.
-        while steps_left > 0 {
+        while steps <= max_steps {
             self_large = Hash::from([], self_large);
             other_large = Hash::from([], other_large);
             steps += 1;
 
             if other_large == self.large {
-                // Other_large_counter * LARGE_EPOCH_LENGTH is the count of increments applied via advancing the large digit continually.
-                // -other_large_counter is the difference between 'other' and its next large epoch.
-                // self_counter is just what's self to add because of the count at which 'self' is
-                return Ok((steps * LARGE_EPOCH_LENGTH as isize) - (other_counter + self_counter));
+                // steps * LARGE_EPOCH_LENGTH is the count of `inc`s applied via advancing the large digit so far
+                // -self_counter is the difference between `right` and its next large epoch.
+                // other_counter is just what's left to add because of the count at which `self` is.
+                let larger_count_ahead =
+                    (steps * LARGE_EPOCH_LENGTH) as isize - other_counter + self_counter;
+
+                return Ok(larger_count_ahead);
             }
 
             if self_large == other.large {
                 // In this case, we compute the same difference, but return the negative to indicate that 'other' is bigger that
                 // 'self' rather than the other way around.
-                return Ok(-(steps * LARGE_EPOCH_LENGTH as isize) - (self_counter + other_counter));
+                let larger_count_ahead =
+                    (steps * LARGE_EPOCH_LENGTH) as isize - self_counter + other_counter;
+
+                return Ok(-larger_count_ahead);
             }
-            steps_left -= 1;
         }
         Err(RatchetErr::UnknownRelation)
     }
@@ -508,5 +509,35 @@ mod proptests {
         // Fast jump in ~O(log n) steps
         ratchet.inc_by(jumps);
         prop_assert_ratchet_eq!(slow, ratchet);
+    }
+
+    #[proptest]
+    fn test_compare(
+        #[strategy(0..100_000usize)] jumps: usize,
+        #[strategy(any_ratchet())] smaller: Ratchet,
+    ) {
+        let mut bigger = smaller.clone();
+        bigger.inc_by(jumps);
+        prop_assert_eq!(bigger.compare(&smaller, jumps).unwrap(), jumps as isize);
+    }
+
+    #[proptest]
+    fn test_compare_antisymmetry(
+        #[strategy(0..100_000usize)] jumps: usize,
+        #[strategy(any_ratchet())] smaller: Ratchet,
+    ) {
+        let mut bigger = smaller.clone();
+        bigger.inc_by(jumps);
+        let compare_a = bigger.compare(&smaller, jumps).unwrap();
+        let compare_b = smaller.compare(&bigger, jumps).unwrap();
+        prop_assert_eq!(compare_a, -compare_b);
+    }
+
+    #[proptest]
+    fn test_compare_unrelated(
+        #[strategy(any_ratchet())] ratchet1: Ratchet,
+        #[strategy(any_ratchet())] ratchet2: Ratchet,
+    ) {
+        prop_assert!(matches!(ratchet1.compare(&ratchet2, 100), Err(_)));
     }
 }

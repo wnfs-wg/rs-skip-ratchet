@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 27680e23551bbe988db732d02eac5117d24763e2dd2935379eabc8d238c2a8c0 # shrinks to input = _TestCompareArgs { jumps: 1, smaller: Ratchet { salt: 0x37441E7E472686.., large: 0x17A450E34300D7.., medium: 0x337C72B5761590.., small: 0xC9F81280953169.., medium_counter: 254, small_counter: 0 } }
