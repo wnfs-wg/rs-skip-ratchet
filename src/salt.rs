@@ -1,28 +1,21 @@
 use crate::hash::Hash;
-use rand_core::CryptoRngCore;
 use std::fmt::Debug;
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Salt(
-    #[cfg_attr(feature = "serde", serde(with = "crate::serde_byte_array"))] pub [u8; 32],
+pub(crate) struct Salt(
+    #[cfg_attr(feature = "serde", serde(with = "crate::serde_byte_array"))] [u8; 32],
 );
 
 impl Salt {
-    pub fn from_rng(rng: &mut impl CryptoRngCore) -> Self {
-        let mut salt = [0u8; 32];
-        rng.fill_bytes(&mut salt);
-        Self(salt)
-    }
-
-    pub fn from_raw(raw: [u8; 32]) -> Self {
+    pub(crate) fn from_raw(raw: [u8; 32]) -> Self {
         Self(raw)
     }
 }
 
 impl From<Hash> for Salt {
     fn from(hash: Hash) -> Self {
-        Self(hash.0)
+        Self(*hash.as_slice())
     }
 }
 
