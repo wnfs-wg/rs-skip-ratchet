@@ -63,7 +63,7 @@ let mut recent_ratchet = old_ratchet.clone();
 recent_ratchet.inc_by(10);
 
 for revision in recent_ratchet.previous(&old_ratchet, 10).unwrap() {
-    println!("{:?}", String::from(&revision));
+    println!("{:#?}", revision);
 }
 ```
 
@@ -131,6 +131,6 @@ We would be happy to try to answer your question or try opening a new issue on G
 This project is licensed under the [Apache License 2.0](https://github.com/wnfs-wg/rs-skip-ratchet/blob/main/LICENSE).
 
 [commit-spec]: https://www.conventionalcommits.org/en/v1.0.0/#specification
-[commit-spec-site]: https://www.conventionalcommits.org/{% if bench %}
+[commit-spec-site]: https://www.conventionalcommits.org/
 [paper]: https://eprint.iacr.org/2022/1078.pdf
 [pre-commit]: https://pre-commit.com/
