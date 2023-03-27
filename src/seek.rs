@@ -5,7 +5,7 @@ use crate::Ratchet;
 use std::cmp::{self, Ordering};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-/// The different possible ratchet jumps
+/// The different possible ratchet jump sizes. Used for the `RatchetSeeker`.
 pub enum JumpSize {
     /// A jump size that doesn't change the ratchet at all
     Zero,
