@@ -30,24 +30,6 @@ pub struct PreviousIterator {
 impl PreviousIterator {
     /// If possible, this constructs an iterator for enumerating all ratchets
     /// from most recent to oldest between `old` and `recent`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use skip_ratchet::{Ratchet, PreviousIterator};
-    ///
-    /// let old_ratchet = Ratchet::from_rng(&mut rand::thread_rng());
-    ///
-    /// let mut new_ratchet = old_ratchet.clone();
-    /// new_ratchet.inc_by(100_000);
-    ///
-    /// let mut new_ratchet_previous = old_ratchet.clone();
-    /// new_ratchet_previous.inc_by(99_999);
-    ///
-    /// let mut iterator = PreviousIterator::new(&old_ratchet, &new_ratchet, 1_000_000_000).unwrap();
-    ///
-    /// assert_eq!(iterator.next(), Some(new_ratchet_previous));
-    /// ```
     pub(crate) fn new(
         old: &Ratchet,
         recent: &Ratchet,
@@ -90,7 +72,7 @@ impl PreviousIterator {
     /// let mut new_ratchet = old_ratchet.clone();
     /// new_ratchet.inc_by(100_000);
     ///
-    /// let iterator = PreviousIterator::new(&old_ratchet, &new_ratchet, 1_000_000_000).unwrap();
+    /// let iterator = new_ratchet.previous(&old_ratchet, 1_000_000_000).unwrap();
     ///
     /// assert_eq!(iterator.step_count(), 100_000);
     /// ```
