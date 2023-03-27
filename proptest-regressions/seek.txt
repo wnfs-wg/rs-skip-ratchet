@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 6f1aca605808df647804a4de090da03eb5155177264b287eb5194ea88de42c77 # shrinks to input = _PropRatchetSeekZeroStepIsFalseArgs { initial: Ratchet { salt: 0x2F4F6AB5675CCD.., large: 0x148BE01A9B287D.., medium: 0xB79DD04A5306E6.., small: 0x8E75F56A736F6E.., medium_counter: 254, small_counter: 0 } }
+cc ac6ac3eba75474425c7d7630731ca66cf90818a47a5c9e6fbec23476a919065d # shrinks to input = _PropRatchetSeekFindsOnlyGreaterAndLessArgs { initial: Ratchet { salt: 0x230B6D2E238252.., large: 0xA93DBB6672705D.., medium: 0x9606245D58F936.., small: 0x776CC8288CB761.., medium_counter: 254, small_counter: 0 }, jump: 5, initial_jump_size: Zero }
+cc 28123a377403cfba92c523d38ad5d4e3fefcb4e2a85185328d7b60b21e3428de # shrinks to input = _PropRatchetSeekFindsOnlyGreaterAndLessArgs { initial: Ratchet { salt: 0xA72CED842614EE.., large: 0x12E24FDCD7B0C9.., medium: 0x6D2D1D8106028B.., small: 0x15814A9F25926A.., medium_counter: 254, small_counter: 0 }, jump: 2, initial_jump_size: Zero }
