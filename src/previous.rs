@@ -1,3 +1,5 @@
+//! Implements an iterator which gives intermediate states between two ratchets
+//! yielding states from recent to old.
 use crate::{constants::LARGE_EPOCH_LENGTH, PreviousErr, Ratchet};
 
 /// An iterator over `Ratchet`'s between two `Ratchet`'s.

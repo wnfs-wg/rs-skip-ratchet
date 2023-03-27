@@ -1,17 +1,18 @@
 mod constants;
 mod errors;
 mod hash;
-pub mod previous;
-pub mod ratchet;
+mod ratchet;
 mod salt;
-pub mod seek;
 #[cfg(feature = "serde")]
 mod serde_byte_array;
 
 #[cfg(test)]
 mod test_utils;
 
+pub mod previous;
+pub mod seek;
+
 pub use errors::*;
 pub use previous::PreviousIterator;
-pub use ratchet::Ratchet;
+pub use ratchet::*;
 pub use seek::RatchetSeeker;

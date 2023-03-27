@@ -1,3 +1,6 @@
+//! Implements fast-forward-seeking desired future ratchet states
+//! where the exact index to seek to is unknown in advance
+//! (sort-of an exponential/binary search).
 use crate::Ratchet;
 use std::cmp::{self, Ordering};
 
