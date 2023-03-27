@@ -1,6 +1,7 @@
 mod constants;
 mod errors;
 mod hash;
+mod previous;
 mod ratchet;
 mod salt;
 #[cfg(feature = "serde")]
@@ -9,7 +10,6 @@ mod serde_byte_array;
 #[cfg(test)]
 mod test_utils;
 
-pub mod previous;
 pub mod seek;
 
 pub use errors::*;

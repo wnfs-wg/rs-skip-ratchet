@@ -48,7 +48,7 @@ impl PreviousIterator {
     ///
     /// assert_eq!(iterator.next(), Some(new_ratchet_previous));
     /// ```
-    pub fn new(
+    pub(crate) fn new(
         old: &Ratchet,
         recent: &Ratchet,
         discrepancy_budget: usize,
