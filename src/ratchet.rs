@@ -253,9 +253,7 @@ impl Ratchet {
         old: &Ratchet,
         discrepancy_budget: usize,
     ) -> Result<PreviousIterator, PreviousErr> {
-        if self == old {
-            return Err(PreviousErr::EqualRatchets);
-        } else if old.known_after(self) {
+        if old.known_after(self) {
             return Err(PreviousErr::OlderRatchet);
         }
 
