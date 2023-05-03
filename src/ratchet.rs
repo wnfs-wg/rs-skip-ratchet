@@ -253,9 +253,7 @@ impl Ratchet {
         old: &Ratchet,
         discrepancy_budget: usize,
     ) -> Result<PreviousIterator, PreviousErr> {
-        if self == old {
-            return Err(PreviousErr::EqualRatchets);
-        } else if old.known_after(self) {
+        if old.known_after(self) {
             return Err(PreviousErr::OlderRatchet);
         }
 
@@ -539,5 +537,25 @@ mod proptests {
         #[strategy(any_ratchet())] ratchet2: Ratchet,
     ) {
         prop_assert!(matches!(ratchet1.compare(&ratchet2, 100), Err(_)));
+    }
+
+    #[cfg(feature = "serde")]
+    #[proptest]
+    fn test_dag_cbor_serde_roundtrip(#[strategy(any_ratchet())] ratchet: Ratchet) {
+        use libipld::{
+            cbor::DagCborCodec,
+            prelude::{Decode, Encode},
+            Ipld,
+        };
+        use std::io::Cursor;
+
+        let ipld = libipld::serde::to_ipld(&ratchet).unwrap();
+        let mut bytes = Vec::new();
+        ipld.encode(DagCborCodec, &mut bytes).unwrap();
+
+        let ipld = Ipld::decode(DagCborCodec, &mut Cursor::new(bytes)).unwrap();
+        let ratchet_back = libipld::serde::from_ipld::<Ratchet>(ipld).unwrap();
+
+        prop_assert_ratchet_eq!(ratchet_back, ratchet);
     }
 }

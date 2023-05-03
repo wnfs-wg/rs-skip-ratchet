@@ -191,18 +191,6 @@ mod tests {
     }
 
     #[test]
-    fn test_ratchet_previous_equal_error() {
-        let old = Ratchet::zero(salt(), &seed());
-        match old.previous(&old, 10) {
-            Ok(_) => panic!("expected PreviousErr::EqualRatchets, got an iterator instead"),
-            Err(e) => match e {
-                PreviousErr::EqualRatchets => (),
-                _ => panic!("expected PreviousErr::EqualRatchets, got {e:?}"),
-            },
-        }
-    }
-
-    #[test]
     fn test_ratchet_previous_older_error() {
         let old = Ratchet::zero(salt(), &seed());
         let mut recent = old.clone();

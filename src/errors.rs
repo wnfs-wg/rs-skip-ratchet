@@ -13,7 +13,6 @@ pub enum RatchetErr {
 #[derive(Debug, PartialEq, Eq)]
 pub enum PreviousErr {
     BudgetExceeded,
-    EqualRatchets,
     OlderRatchet,
 }
 
@@ -35,7 +34,6 @@ impl Display for PreviousErr {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
             PreviousErr::BudgetExceeded => write!(f, "ratchet discrepancy budget exceeded"),
-            PreviousErr::EqualRatchets => write!(f, "ratchets are equal"),
             PreviousErr::OlderRatchet => write!(f, "current ratchet is older than given ratchet"),
         }
     }
