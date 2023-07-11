@@ -112,6 +112,33 @@ impl Ratchet {
             .chain_update(self.small)
     }
 
+    /// Returns the bytes that get hashed during key derivation.
+    ///
+    /// Can be useful for hashing using algorithms other than SHA3.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skip_ratchet::Ratchet;
+    /// use sha3::{Sha3_256, Digest};
+    ///
+    /// let dsi = "awesome.ly key derivation 2023";
+    /// let ratchet = Ratchet::from_rng(&mut rand::thread_rng());
+    ///
+    /// let key: [u8; 32] = ratchet.derive_key(dsi).finalize().into();
+    /// let key2: [u8; 32] = Sha3_256::new().chain_update(ratchet.key_derivation_data(dsi)).finalize().into();
+    ///
+    /// assert_eq!(key, key2);
+    /// ```
+    pub fn key_derivation_data(&self, domain_separation_info: impl AsRef<[u8]>) -> Vec<u8> {
+        let mut vec = Vec::new();
+        vec.extend(domain_separation_info.as_ref());
+        vec.extend(self.large.as_ref());
+        vec.extend(self.medium.as_ref());
+        vec.extend(self.small.as_ref());
+        vec
+    }
+
     /// Moves the ratchet forward by one step.
     ///
     /// # Examples
