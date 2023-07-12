@@ -6,8 +6,8 @@ use crate::{
     salt::Salt,
     PreviousErr, PreviousIterator, RatchetErr,
 };
+use blake3::traits::digest::Digest;
 use rand_core::CryptoRngCore;
-use sha3::{Digest, Sha3_256};
 use std::fmt::{self, Display, Formatter};
 
 /// A (Skip) `Ratchet` is a data structure for deriving keys that maintain backward secrecy.
@@ -99,34 +99,60 @@ impl Ratchet {
     ///
     /// ```
     /// use skip_ratchet::Ratchet;
-    /// use sha3::Digest;
+    /// use blake3::traits::digest::Digest;
     ///
     /// let ratchet = Ratchet::from_rng(&mut rand::thread_rng());
     /// let key: [u8; 32] = ratchet.derive_key("awesome.ly temporal key derivation").finalize().into();
     /// ```
-    pub fn derive_key(&self, domain_separation_info: impl AsRef<[u8]>) -> Sha3_256 {
-        Sha3_256::new()
-            .chain_update(domain_separation_info)
-            .chain_update(self.large)
-            .chain_update(self.medium)
-            .chain_update(self.small)
+    pub fn derive_key(&self, domain_separation_info: impl AsRef<[u8]>) -> blake3::Hasher {
+        let mut hasher = blake3::Hasher::new();
+        self.derive_key_with(domain_separation_info, &mut hasher);
+        hasher
     }
 
-    /// Returns the bytes that get hashed during key derivation.
-    ///
-    /// Can be useful for hashing using algorithms other than SHA3.
+    /// Derives a new key from the ratchet using given hashing algorithm.
     ///
     /// # Examples
     ///
     /// ```
     /// use skip_ratchet::Ratchet;
-    /// use sha3::{Sha3_256, Digest};
+    /// use blake3::traits::digest::Digest;
+    ///
+    /// let ratchet = Ratchet::from_rng(&mut rand::thread_rng());
+    /// let dsi = "awesome.ly temporal key derivation";
+    /// let mut hasher = blake3::Hasher::new();
+    /// ratchet.derive_key_with(dsi, &mut hasher);
+    /// let key: [u8; 32] = hasher.finalize().into();
+    /// let key2: [u8; 32] = ratchet.derive_key(dsi).finalize().into();
+    /// assert_eq!(key2, key);
+    /// ```
+    pub fn derive_key_with(
+        &self,
+        domain_separation_info: impl AsRef<[u8]>,
+        hasher: &mut impl Digest,
+    ) {
+        // Minimally fewer allocations than using `self.key_derivation_data()`.
+        hasher.update(domain_separation_info);
+        hasher.update(self.large);
+        hasher.update(self.medium);
+        hasher.update(self.small);
+    }
+
+    /// Returns the bytes that get hashed during key derivation.
+    ///
+    /// Can be useful for hashing using algorithms other than Blake3 for the final key derivation.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use skip_ratchet::Ratchet;
+    /// use blake3::traits::digest::Digest;
     ///
     /// let dsi = "awesome.ly key derivation 2023";
     /// let ratchet = Ratchet::from_rng(&mut rand::thread_rng());
     ///
     /// let key: [u8; 32] = ratchet.derive_key(dsi).finalize().into();
-    /// let key2: [u8; 32] = Sha3_256::new().chain_update(ratchet.key_derivation_data(dsi)).finalize().into();
+    /// let key2: [u8; 32] = blake3::Hasher::new().chain_update(ratchet.key_derivation_data(dsi)).finalize().into();
     ///
     /// assert_eq!(key, key2);
     /// ```

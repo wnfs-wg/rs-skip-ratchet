@@ -1,4 +1,3 @@
-use sha3::{Digest, Sha3_256};
 use std::fmt::Debug;
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -21,7 +20,7 @@ impl Hash {
 
     /// Creates a keyed Hash by hashing the value with given prefix.
     pub(crate) fn from(prefix: impl AsRef<[u8]>, value: impl AsRef<[u8]>) -> Self {
-        let mut hasher = Sha3_256::new();
+        let mut hasher = blake3::Hasher::new();
         hasher.update(prefix.as_ref());
         hasher.update(value.as_ref());
         Self(hasher.finalize().into())
