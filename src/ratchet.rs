@@ -19,7 +19,7 @@ use std::fmt::{self, Display, Formatter};
 ///
 /// ```
 /// use skip_ratchet::Ratchet;
-/// use sha3::Digest;
+/// use blake3::traits::digest::Digest;
 ///
 /// let ratchet = Ratchet::from_rng(&mut rand::thread_rng());
 /// let key: [u8; 32] = ratchet.derive_key("awesome.ly key derivation").finalize().into();
