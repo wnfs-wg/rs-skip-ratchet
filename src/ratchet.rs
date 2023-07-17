@@ -102,15 +102,18 @@ impl Ratchet {
     /// use blake3::traits::digest::Digest;
     ///
     /// let ratchet = Ratchet::from_rng(&mut rand::thread_rng());
-    /// let key: [u8; 32] = ratchet.derive_key("awesome.ly temporal key derivation").finalize().into();
+    /// let key: [u8; 32] = ratchet.derive_key("awesome.ly 2023 encryption key derivation").finalize().into();
     /// ```
-    pub fn derive_key(&self, domain_separation_info: impl AsRef<[u8]>) -> blake3::Hasher {
-        let mut hasher = blake3::Hasher::new();
-        self.derive_key_with(domain_separation_info, &mut hasher);
+    pub fn derive_key(&self, domain_separation_info: &str) -> blake3::Hasher {
+        let mut hasher = blake3::Hasher::new_derive_key(domain_separation_info);
+        self.derive_key_with(&mut hasher);
         hasher
     }
 
-    /// Derives a new key from the ratchet using given hashing algorithm.
+    /// Hashes the ratchet into given hashing algorithm.
+    ///
+    /// If used for key derivation, consider adding a domain separation string
+    /// to the hash, as seen in the example.
     ///
     /// # Examples
     ///
@@ -119,20 +122,15 @@ impl Ratchet {
     /// use blake3::traits::digest::Digest;
     ///
     /// let ratchet = Ratchet::from_rng(&mut rand::thread_rng());
-    /// let dsi = "awesome.ly temporal key derivation";
-    /// let mut hasher = blake3::Hasher::new();
-    /// ratchet.derive_key_with(dsi, &mut hasher);
+    /// let dsi = "awesome.ly 2023 encryption key derivation";
+    /// let mut hasher = blake3::Hasher::new_derive_key(dsi);
+    /// ratchet.derive_key_with(&mut hasher);
     /// let key: [u8; 32] = hasher.finalize().into();
     /// let key2: [u8; 32] = ratchet.derive_key(dsi).finalize().into();
     /// assert_eq!(key2, key);
     /// ```
-    pub fn derive_key_with(
-        &self,
-        domain_separation_info: impl AsRef<[u8]>,
-        hasher: &mut impl Digest,
-    ) {
+    pub fn derive_key_with(&self, hasher: &mut impl Digest) {
         // Minimally fewer allocations than using `self.key_derivation_data()`.
-        hasher.update(domain_separation_info);
         hasher.update(self.large);
         hasher.update(self.medium);
         hasher.update(self.small);
@@ -142,23 +140,25 @@ impl Ratchet {
     ///
     /// Can be useful for hashing using algorithms other than Blake3 for the final key derivation.
     ///
+    /// Please consider separating the domain the key is used for by using a keyed hashing function,
+    /// see the example.
+    ///
     /// # Examples
     ///
     /// ```
     /// use skip_ratchet::Ratchet;
     /// use blake3::traits::digest::Digest;
     ///
-    /// let dsi = "awesome.ly key derivation 2023";
+    /// let dsi = "awesome.ly 2023 encryption key derivation";
     /// let ratchet = Ratchet::from_rng(&mut rand::thread_rng());
     ///
     /// let key: [u8; 32] = ratchet.derive_key(dsi).finalize().into();
-    /// let key2: [u8; 32] = blake3::Hasher::new().chain_update(ratchet.key_derivation_data(dsi)).finalize().into();
+    /// let key2: [u8; 32] = blake3::Hasher::new_derive_key(dsi).chain_update(ratchet.key_derivation_data()).finalize().into();
     ///
     /// assert_eq!(key, key2);
     /// ```
-    pub fn key_derivation_data(&self, domain_separation_info: impl AsRef<[u8]>) -> Vec<u8> {
+    pub fn key_derivation_data(&self) -> Vec<u8> {
         let mut vec = Vec::new();
-        vec.extend(domain_separation_info.as_ref());
         vec.extend(self.large.as_ref());
         vec.extend(self.medium.as_ref());
         vec.extend(self.small.as_ref());
