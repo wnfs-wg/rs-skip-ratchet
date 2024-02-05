@@ -53,7 +53,7 @@ jobs:
         run: rust-covfix lcov.info -o lcov.info --verbose
 
       - name: Upload to codecov.io
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true
